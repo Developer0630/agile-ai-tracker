@@ -1,0 +1,32 @@
+{
+  "name": "agile-ai-tracker-backend",
+  "version": "1.0.0",
+  "description": "Backend API for AI-Powered Agile Daily Standup & Workflow Tracker",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "keywords": [
+    "agile",
+    "scrum",
+    "ai",
+    "gemini",
+    "kanban",
+    "express",
+    "mongodb"
+  ],
+  "author": "VKU Student",
+  "license": "ISC",
+  "dependencies": {
+    "@google/generative-ai": "^0.21.0",
+    "cors": "^2.8.6",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "groq-sdk": "^1.5.0",
+    "mongoose": "^8.3.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
+}
