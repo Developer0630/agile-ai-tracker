@@ -3,6 +3,7 @@ const router = express.Router();
 const {
   createSprint,
   getSprintsByProject,
+  getActiveSprint, // 1. Import thêm hàm lấy Active Sprint
   getSprintById,
   startSprint,
   completeSprint,
@@ -13,6 +14,11 @@ const {
 // Quản lý danh sách & tạo Sprint
 router.post('/', createSprint);
 router.get('/project/:projectId', getSprintsByProject);
+
+// 2. KHAI BÁO ROUTE ACTIVE SPRINT Ở ĐÂY (Phải đặt TRƯỚC router.get('/:id'))
+router.get('/project/:projectId/active', getActiveSprint);
+
+// Lấy chi tiết theo Sprint ID (Bắt buộc phải khai báo SAU các route cụ thể)
 router.get('/:id', getSprintById);
 
 // Cập nhật trạng thái vòng đời Sprint

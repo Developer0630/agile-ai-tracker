@@ -1,6 +1,32 @@
 const Sprint = require('../models/Sprint');
 const Task = require('../models/Task');
 
+// @desc    Lấy Sprint đang ACTIVE của 1 Project
+// @route   GET /api/sprints/project/:projectId/active
+exports.getActiveSprint = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+
+    // Tìm Sprint thuộc project có status là active (không phân biệt hoa/thường)
+    const activeSprint = await Sprint.findOne({
+      projectId,
+      status: { $regex: /^active$/i }
+    });
+
+    if (!activeSprint) {
+      return res.status(200).json({ 
+        success: true, 
+        data: null, 
+        message: 'Không có Sprint nào đang chạy' 
+      });
+    }
+
+    res.status(200).json({ success: true, data: activeSprint });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // @desc    Tạo Sprint mới (Trạng thái mặc định: planned)
 // @route   POST /api/sprints
 exports.createSprint = async (req, res) => {
@@ -26,7 +52,7 @@ exports.createSprint = async (req, res) => {
   }
 };
 
-// @desc    Lấy danh sách tất cả Sprint của 1 Project (Kèm danh sách các Task thuộc từng Sprint)
+// @desc    Lấy danh sách tất cả Sprint của 1 Project
 // @route   GET /api/sprints/project/:projectId
 exports.getSprintsByProject = async (req, res) => {
   try {
@@ -36,12 +62,10 @@ exports.getSprintsByProject = async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    // Lấy kèm toàn bộ Task thuộc các Sprint này
     const sprintIds = sprints.map((s) => s._id);
     const tasks = await Task.find({ sprintId: { $in: sprintIds } })
       .populate('assigneeId', 'name email');
 
-    // Gom nhóm Task vào từng Sprint tương ứng
     const result = sprints.map((sprint) => ({
       ...sprint,
       tasks: tasks.filter((task) => task.sprintId?.toString() === sprint._id.toString())
@@ -72,6 +96,7 @@ exports.getSprintById = async (req, res) => {
 
 // @desc    Bắt đầu Sprint (Start Sprint)
 // @route   PUT /api/sprints/:id/start
+// Backend: sprintController.js
 exports.startSprint = async (req, res) => {
   try {
     const { id } = req.params;
@@ -82,32 +107,33 @@ exports.startSprint = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Không tìm thấy Sprint!' });
     }
 
-    // Kiểm tra xem đã có Sprint nào đang Active trong dự án này chưa
-    const activeSprint = await Sprint.findOne({
-      projectId: sprint.projectId,
-      status: 'active',
-      _id: { $ne: id }
-    });
+    // Tự động hoàn thành (completed) bất kỳ Sprint nào đang active trước đó của Project này
+    await Sprint.updateMany(
+      {
+        projectId: sprint.projectId,
+        status: { $regex: /^active$/i },
+        _id: { $ne: id }
+      },
+      { $set: { status: 'completed' } }
+    );
 
-    if (activeSprint) {
-      return res.status(400).json({
-        success: false,
-        message: `Sprint "${activeSprint.name}" đang diễn ra. Mỗi dự án chỉ được phép có 1 Sprint active tại một thời điểm!`
-      });
-    }
-
+    // Kích hoạt Sprint mới
     sprint.status = 'active';
     sprint.startDate = startDate || new Date();
     sprint.endDate = endDate || sprint.endDate;
     await sprint.save();
 
-    res.status(200).json({ success: true, message: 'Đã kích hoạt Sprint thành công!', data: sprint });
+    res.status(200).json({ 
+      success: true, 
+      message: 'Đã kích hoạt Sprint thành công!', 
+      data: sprint 
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// @desc    Hoàn thành Sprint (Complete Sprint) - Tự động đẩy Task chưa DONE về Backlog
+// @desc    Hoàn thành Sprint (Complete Sprint)
 // @route   PUT /api/sprints/:id/complete
 exports.completeSprint = async (req, res) => {
   try {
@@ -118,11 +144,9 @@ exports.completeSprint = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Không tìm thấy Sprint!' });
     }
 
-    // 1. Cập nhật trạng thái Sprint thành 'completed'
     sprint.status = 'completed';
     await sprint.save();
 
-    // 2. Trả tất cả Task trong Sprint chưa ở trạng thái 'done' (hoặc 'DONE') về Product Backlog (sprintId = null)
     const unfinishedTasks = await Task.updateMany(
       {
         sprintId: id,
@@ -144,7 +168,7 @@ exports.completeSprint = async (req, res) => {
   }
 };
 
-// @desc    Cập nhật thông tin Sprint (Tên, Goal, Ngày bắt đầu/kết thúc)
+// @desc    Cập nhật thông tin Sprint
 // @route   PUT /api/sprints/:id
 exports.updateSprint = async (req, res) => {
   try {
@@ -164,7 +188,7 @@ exports.updateSprint = async (req, res) => {
   }
 };
 
-// @desc    Xóa Sprint (Các task thuộc Sprint này sẽ được đưa về lại Backlog thay vì bị xóa)
+// @desc    Xóa Sprint
 // @route   DELETE /api/sprints/:id
 exports.deleteSprint = async (req, res) => {
   try {
@@ -173,10 +197,9 @@ exports.deleteSprint = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Không tìm thấy Sprint!' });
     }
 
-    // Đẩy toàn bộ task thuộc sprint này về Product Backlog
     await Task.updateMany({ sprintId: req.params.id }, { $set: { sprintId: null } });
 
-    res.status(200).json({ success: true, message: 'Đã xóa Sprint và chuyển các Task về Backlog thành công!' });
+    res.status(200).json({ success: true, message: 'Đã xóa Sprint thành công!' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

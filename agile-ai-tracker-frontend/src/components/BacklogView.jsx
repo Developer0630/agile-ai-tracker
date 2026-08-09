@@ -1,367 +1,509 @@
-import { useState, useEffect, useCallback } from 'react';
-import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Play, GripVertical, Plus, Layers, Calendar } from 'lucide-react';
+import { Plus, Play, Calendar, GripVertical, ChevronDown, ChevronRight, Layers, Edit2, Trash2, Check, X } from 'lucide-react';
 
-const API_BASE_URL = 'http://localhost:5000/api';
-const BACKLOG_DROPPABLE_ID = 'backlog';
+const API_BASE = 'http://localhost:5000/api';
 
-const toId = (id) => (id == null ? '' : String(id));
-
-const findSprintByDroppableId = (sprintList, droppableId) =>
-  sprintList.find((s) => toId(s._id) === toId(droppableId));
-
-export default function BacklogView({ projectId = 'default_project_id' }) {
-  const [backlogTasks, setBacklogTasks] = useState([]);
+export default function BacklogView({ projectId, onTaskUpdate, onOpenCreateModal }) {
   const [sprints, setSprints] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [backlogTasks, setBacklogTasks] = useState([]);
+  const [loading, setLoading] = useState(!!projectId); 
+  const [newSprintName, setNewSprintName] = useState('');
+  const [showSprintModal, setShowSprintModal] = useState(false);
+  
+  // State quản lý đóng/mở từng Sprint
+  const [expandedSprints, setExpandedSprints] = useState({});
 
-  // State Tạo Sprint
-  const [showCreateSprint, setShowCreateSprint] = useState(false);
-  const [sprintName, setSprintName] = useState('');
-  const [sprintGoal, setSprintGoal] = useState('');
+  // State chỉnh sửa tên Sprint trực tiếp (Inline Edit)
+  const [editingSprintId, setEditingSprintId] = useState(null);
+  const [editingSprintName, setEditingSprintName] = useState('');
 
-  const fetchData = useCallback(async () => {
+  const refreshBacklogData = async () => {
+    if (!projectId) return;
     try {
-      const [resBacklog, resSprints] = await Promise.all([
-        axios.get(`${API_BASE_URL}/tasks/backlog/${projectId}`),
-        axios.get(`${API_BASE_URL}/sprints/project/${projectId}`)
+      const [resSprints, resBacklog] = await Promise.all([
+        axios.get(`${API_BASE}/sprints/project/${projectId}`),
+        axios.get(`${API_BASE}/tasks/backlog/${projectId}`)
       ]);
-      setBacklogTasks(resBacklog.data.data || []);
-      setSprints(resSprints.data.data || []);
-    } catch (error) {
-      console.error('Lỗi khi tải dữ liệu:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [projectId]);
+      const loadedSprints = resSprints.data.data || resSprints.data || [];
+      setSprints(loadedSprints);
+      setBacklogTasks(resBacklog.data.data || resBacklog.data || []);
 
-  useEffect(() => {
-    let isMounted = true;
-
-    const loadData = async () => {
-      if (isMounted) {
-        await fetchData();
+      if (loadedSprints.length > 0 && Object.keys(expandedSprints).length === 0) {
+        const firstId = loadedSprints[0]._id || loadedSprints[0].id;
+        setExpandedSprints({ [firstId]: true });
       }
-    };
-
-    loadData();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [fetchData]);
-
-  // Tạo Sprint Mới
-  const handleCreateSprint = async (e) => {
-    e.preventDefault();
-    if (!sprintName.trim()) return;
-
-    try {
-      await axios.post(`${API_BASE_URL}/sprints`, {
-        name: sprintName,
-        goal: sprintGoal,
-        projectId,
-        status: 'planned'
-      });
-      setSprintName('');
-      setSprintGoal('');
-      setShowCreateSprint(false);
-      fetchData();
-    } catch (error) {
-      console.error('Lỗi khi tạo Sprint mới:', error);
-      alert('Không thể tạo Sprint mới!');
+    } catch (err) {
+      console.error('Lỗi làm mới dữ liệu Backlog:', err);
     }
   };
 
-  // Kéo / Thả công việc
-  const onDragEnd = async (result) => {
-    const { source, destination, draggableId } = result;
+  useEffect(() => {
+    if (!projectId) return;
+    let ignore = false;
 
-    if (!destination) return;
-    if (
-      toId(source.droppableId) === toId(destination.droppableId) &&
-      source.index === destination.index
-    ) {
-      return;
+    async function fetchData() {
+      try {
+        const [resSprints, resBacklog] = await Promise.all([
+          axios.get(`${API_BASE}/sprints/project/${projectId}`),
+          axios.get(`${API_BASE}/tasks/backlog/${projectId}`)
+        ]);
+
+        if (!ignore) {
+          const loadedSprints = resSprints.data.data || resSprints.data || [];
+          setSprints(loadedSprints);
+          setBacklogTasks(resBacklog.data.data || resBacklog.data || []);
+          
+          if (loadedSprints.length > 0) {
+            const firstId = loadedSprints[0]._id || loadedSprints[0].id;
+            setExpandedSprints({ [firstId]: true });
+          }
+        }
+      } catch (err) {
+        console.error('Lỗi tải dữ liệu Backlog:', err);
+      } finally {
+        if (!ignore) setLoading(false);
+      }
     }
 
-    const targetSprintId =
-      toId(destination.droppableId) === BACKLOG_DROPPABLE_ID
-        ? null
-        : destination.droppableId;
+    fetchData();
+    return () => { ignore = true; };
+  }, [projectId]);
 
-    let movedTask;
-    let newBacklog = [...backlogTasks];
-    let newSprints = sprints.map((s) => ({ ...s, tasks: [...(s.tasks || [])] }));
+  const toggleSprint = (sprintId) => {
+    setExpandedSprints(prev => ({
+      ...prev,
+      [sprintId]: !prev[sprintId]
+    }));
+  };
 
-    if (toId(source.droppableId) === BACKLOG_DROPPABLE_ID) {
-      [movedTask] = newBacklog.splice(source.index, 1);
-    } else {
-      const sourceSprint = findSprintByDroppableId(newSprints, source.droppableId);
-      if (sourceSprint) [movedTask] = sourceSprint.tasks.splice(source.index, 1);
-    }
+  // --- XỬ LÝ SỬA TÊN SPRINT ---
+  const handleStartEditSprint = (e, sprint) => {
+    e.stopPropagation();
+    const sId = sprint._id || sprint.id;
+    setEditingSprintId(sId);
+    setEditingSprintName(sprint.name);
+  };
 
-    if (!movedTask) return;
-    movedTask = { ...movedTask, sprintId: targetSprintId };
-
-    if (toId(destination.droppableId) === BACKLOG_DROPPABLE_ID) {
-      newBacklog.splice(destination.index, 0, movedTask);
-    } else {
-      const destSprint = findSprintByDroppableId(newSprints, destination.droppableId);
-      if (destSprint) destSprint.tasks.splice(destination.index, 0, movedTask);
-    }
-
-    setBacklogTasks(newBacklog);
-    setSprints(newSprints);
+  const handleSaveSprintName = async (e, sprintId) => {
+    e.stopPropagation();
+    if (!editingSprintName.trim()) return;
 
     try {
-      await axios.put(`${API_BASE_URL}/tasks/${draggableId}`, {
-        sprintId: targetSprintId
+      await axios.put(`${API_BASE}/sprints/${sprintId}`, { name: editingSprintName });
+      setEditingSprintId(null);
+      await refreshBacklogData();
+    } catch (err) {
+      console.error('Lỗi khi đổi tên Sprint:', err);
+      alert('Không thể cập nhật tên Sprint!');
+    }
+  };
+
+  const handleCancelEditSprint = (e) => {
+    e.stopPropagation();
+    setEditingSprintId(null);
+  };
+
+  // --- XỬ LÝ XÓA SPRINT ---
+  const handleDeleteSprint = async (e, sprintId) => {
+    e.stopPropagation();
+    if (!window.confirm('Bạn có chắc chắn muốn xóa Sprint này? Các task bên trong sẽ được đưa về Product Backlog.')) return;
+
+    try {
+      await axios.delete(`${API_BASE}/sprints/${sprintId}`);
+      await refreshBacklogData();
+      if (onTaskUpdate) onTaskUpdate();
+    } catch (err) {
+      console.error('Lỗi khi xóa Sprint:', err);
+      alert('Không thể xóa Sprint!');
+    }
+  };
+
+  // --- XỬ LÝ XÓA TASK ---
+  const handleDeleteTask = async (e, taskId) => {
+    e.stopPropagation();
+    if (!window.confirm('Bạn có chắc chắn muốn xóa task này?')) return;
+
+    try {
+      await axios.delete(`${API_BASE}/tasks/${taskId}`);
+      await refreshBacklogData();
+      if (onTaskUpdate) onTaskUpdate();
+    } catch (err) {
+      console.error('Lỗi khi xóa task:', err);
+      alert('Không thể xóa task!');
+    }
+  };
+
+  // --- XỬ LÝ SỬA TASK ---
+  const handleEditTask = (e, task) => {
+    e.stopPropagation();
+    if (onOpenCreateModal) {
+      onOpenCreateModal(task);
+    }
+  };
+
+  // Drag & Drop
+  const handleDragStart = (e, taskId) => {
+    e.dataTransfer.setData('taskId', taskId);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+  };
+
+  const handleDropOnSprint = async (e, targetSprintId) => {
+    e.preventDefault();
+    const taskId = e.dataTransfer.getData('taskId');
+    if (!taskId) return;
+
+    try {
+      await axios.put(`${API_BASE}/tasks/${taskId}`, { sprintId: targetSprintId });
+      await refreshBacklogData();
+      if (onTaskUpdate) onTaskUpdate();
+    } catch {
+      alert('Không thể gán Task vào Sprint!');
+    }
+  };
+
+  const handleDropOnBacklog = async (e) => {
+    e.preventDefault();
+    const taskId = e.dataTransfer.getData('taskId');
+    if (!taskId) return;
+
+    try {
+      await axios.put(`${API_BASE}/tasks/${taskId}`, { sprintId: null });
+      await refreshBacklogData();
+      if (onTaskUpdate) onTaskUpdate();
+    } catch {
+      alert('Không thể chuyển Task về Backlog!');
+    }
+  };
+
+  const handleCreateSprint = async (e) => {
+    e.preventDefault();
+    if (!newSprintName.trim()) return;
+
+    try {
+      const res = await axios.post(`${API_BASE}/sprints`, {
+        projectId,
+        name: newSprintName
       });
-    } catch (error) {
-      console.error('Lỗi khi cập nhật Task trên server:', error);
-      fetchData();
+      const created = res.data.data || res.data;
+      setSprints(prev => [...prev, created]);
+      const newId = created._id || created.id;
+      setExpandedSprints(prev => ({ ...prev, [newId]: true }));
+      setNewSprintName('');
+      setShowSprintModal(false);
+    } catch {
+      alert('Không thể tạo Sprint!');
     }
   };
 
   const handleStartSprint = async (sprintId) => {
     try {
-      await axios.put(`${API_BASE_URL}/sprints/${sprintId}/start`);
-      alert('Đã kích hoạt Sprint thành công!');
-      fetchData();
-    } catch (error) {
-      alert(error.response?.data?.message || 'Không thể kích hoạt Sprint');
+      await axios.put(`${API_BASE}/sprints/${sprintId}/start`);
+      await refreshBacklogData();
+      if (onTaskUpdate) onTaskUpdate();
+    } catch {
+      alert('Lỗi khi kích hoạt Sprint!');
     }
   };
 
   if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 text-slate-400 space-y-3">
-        <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-        <span className="text-xs font-medium">Đang tải danh sách Backlog & Sprint...</span>
-      </div>
-    );
+    return <div className="text-center py-20 text-slate-400 text-xs">Đang tải Backlog...</div>;
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      
-      {/* HEADER & NÚT TẠO SPRINT */}
-      <div className="flex justify-between items-center border-b border-slate-800 pb-4">
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex items-center justify-between">
         <div>
           <h2 className="text-sm font-bold text-slate-100 flex items-center gap-2">
             <Layers className="w-4 h-4 text-indigo-400" />
-            <span>Quản lý Backlog & Sprint</span>
+            <span>Backlog & Quản lý Sprint</span>
           </h2>
-          <p className="text-[11px] text-slate-400 mt-0.5">Kéo thả công việc từ Product Backlog vào các Sprint để lên kế hoạch làm việc.</p>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Kéo thả, chỉnh sửa tên hoặc xóa Sprint và Task trực tiếp.
+          </p>
         </div>
-
         <button
-          onClick={() => setShowCreateSprint(!showCreateSprint)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg transition-all shadow-md shadow-indigo-600/20 cursor-pointer"
+          onClick={() => setShowSprintModal(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium cursor-pointer transition-colors"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-3.5 h-3.5" />
           <span>Tạo Sprint Mới</span>
         </button>
       </div>
 
-      {/* FORM TẠO SPRINT NHANH */}
-      {showCreateSprint && (
-        <form onSubmit={handleCreateSprint} className="bg-slate-900 border border-indigo-500/30 p-4 rounded-xl space-y-3">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <input
-              type="text"
-              required
-              value={sprintName}
-              onChange={(e) => setSprintName(e.target.value)}
-              placeholder="Tên Sprint (VD: Sprint 1 - Sprint UI/UX)..."
-              className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
-            />
-            <input
-              type="text"
-              value={sprintGoal}
-              onChange={(e) => setSprintGoal(e.target.value)}
-              placeholder="Mục tiêu Sprint (Ví dụ: Hoàn thành Luồng Đăng nhập)..."
-              className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
-            />
-          </div>
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setShowCreateSprint(false)}
-              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg"
-            >
-              Hủy
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg"
-            >
-              Lưu Sprint
-            </button>
-          </div>
-        </form>
-      )}
+      {/* Danh sách Sprints */}
+      <div className="space-y-3">
+        {sprints.map(sprint => {
+          const sId = sprint._id || sprint.id;
+          const isSprintActive = sprint.status?.toUpperCase() === 'ACTIVE';
+          const isExpanded = !!expandedSprints[sId];
+          const isEditing = editingSprintId === sId;
+          const taskCount = sprint.tasks?.length || 0;
 
-      <DragDropContext onDragEnd={onDragEnd}>
-        
-        {/* DANH SÁCH SPRINT */}
-        <div className="space-y-4">
-          {sprints.map((sprint) => {
-            const isActive = sprint.status?.toLowerCase() === 'active';
-
-            return (
+          return (
+            <div
+              key={sId}
+              onDragOver={handleDragOver}
+              onDrop={(e) => handleDropOnSprint(e, sId)}
+              className={`bg-slate-900/60 border rounded-xl overflow-hidden transition-all ${
+                isExpanded ? 'border-slate-700/80 shadow-md' : 'border-slate-800/80 hover:border-slate-700'
+              }`}
+            >
+              {/* Sprint Bar Header */}
               <div 
-                key={sprint._id} 
-                className={`bg-[#0F172A]/70 border rounded-xl p-4 space-y-3 transition-all ${
-                  isActive ? 'border-emerald-500/40 bg-emerald-950/10' : 'border-slate-800/90'
-                }`}
+                onClick={() => toggleSprint(sId)}
+                className="flex items-center justify-between p-3 bg-slate-800/40 hover:bg-slate-800/70 cursor-pointer select-none transition-colors group/sprint"
               >
-                {/* Sprint Header */}
-                <div className="flex justify-between items-center">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-indigo-400" />
-                      <h3 className="font-bold text-slate-200 text-xs">{sprint.name}</h3>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide ${
-                        isActive 
-                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
-                          : 'bg-slate-800 text-slate-400 border border-slate-700/50'
-                      }`}>
-                        {sprint.status || 'PLANNED'}
-                      </span>
-                    </div>
-                    {sprint.goal && (
-                      <p className="text-[11px] text-slate-400 mt-1 pl-6">🎯 Goal: {sprint.goal}</p>
-                    )}
-                  </div>
+                <div className="flex items-center gap-2.5 flex-1 min-w-0 pr-2">
+                  <button type="button" className="text-slate-400 hover:text-slate-200 shrink-0">
+                    {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                  </button>
 
-                  {sprint.status?.toLowerCase() === 'planned' && (
-                    <button
-                      onClick={() => handleStartSprint(sprint._id)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg transition-all cursor-pointer shadow-md shadow-emerald-600/20"
-                    >
-                      <Play className="w-3.5 h-3.5 fill-white" />
-                      <span>Start Sprint</span>
-                    </button>
+                  <Calendar className="w-4 h-4 text-indigo-400 shrink-0" />
+
+                  {/* Cho phép sửa tên Sprint trực tiếp */}
+                  {isEditing ? (
+                    <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                      <input
+                        type="text"
+                        value={editingSprintName}
+                        onChange={(e) => setEditingSprintName(e.target.value)}
+                        className="bg-slate-950 border border-indigo-500 rounded px-2 py-0.5 text-xs text-slate-100 focus:outline-none"
+                        autoFocus
+                      />
+                      <button
+                        onClick={(e) => handleSaveSprintName(e, sId)}
+                        className="p-1 hover:bg-emerald-600/20 text-emerald-400 rounded"
+                        title="Lưu"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={handleCancelEditSprint}
+                        className="p-1 hover:bg-red-600/20 text-red-400 rounded"
+                        title="Hủy"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-xs font-bold text-slate-200 truncate">{sprint.name}</span>
                   )}
+
+                  <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider shrink-0 ${
+                    isSprintActive ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-800 text-slate-400 border border-slate-700/50'
+                  }`}>
+                    {sprint.status || 'PLANNED'}
+                  </span>
+
+                  <span className="text-[11px] font-mono text-slate-400 bg-slate-950/50 px-2 py-0.5 rounded-md shrink-0">
+                    {taskCount} tasks
+                  </span>
                 </div>
 
-                {/* Drop Zone cho Sprint */}
-                <Droppable droppableId={toId(sprint._id)}>
-                  {(provided, snapshot) => (
-                    <div
-                      ref={provided.innerRef}
-                      {...provided.droppableProps}
-                      className={`min-h-[60px] rounded-lg p-2 border border-dashed transition-colors space-y-2 ${
-                        snapshot.isDraggingOver 
-                          ? 'bg-indigo-950/30 border-indigo-500/50' 
-                          : 'bg-slate-950/40 border-slate-800'
-                      }`}
+                {/* Các nút hành động trên thanh Sprint */}
+                <div className="flex items-center gap-2 shrink-0" onClick={e => e.stopPropagation()}>
+                  {!isSprintActive && (
+                    <button
+                      onClick={() => handleStartSprint(sId)}
+                      className="flex items-center gap-1 px-2.5 py-1 bg-emerald-600/90 hover:bg-emerald-500 text-white text-[11px] font-medium rounded-lg cursor-pointer transition-colors"
                     >
-                      {sprint.tasks?.map((task, index) => (
-                        <TaskItem key={task._id} task={task} index={index} />
-                      ))}
-                      {provided.placeholder}
-                      {(!sprint.tasks || sprint.tasks.length === 0) && (
-                        <div className="text-center text-slate-500 text-xs py-3">
-                          Kéo thả công việc vào đây để thêm vào Sprint
-                        </div>
-                      )}
+                      <Play className="w-3 h-3" />
+                      <span>Bắt đầu</span>
+                    </button>
+                  )}
+
+                  {/* Nút Sửa/Xóa Sprint */}
+                  {!isEditing && (
+                    <div className="flex items-center gap-1 opacity-0 group-hover/sprint:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => handleStartEditSprint(e, sprint)}
+                        title="Đổi tên Sprint"
+                        className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-slate-200 cursor-pointer"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={(e) => handleDeleteSprint(e, sId)}
+                        title="Xóa Sprint"
+                        className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-red-400 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   )}
-                </Droppable>
+                </div>
               </div>
-            );
-          })}
-        </div>
 
-        {/* PRODUCT BACKLOG */}
-        <div className="bg-[#0F172A]/70 border border-slate-800 rounded-xl p-4 space-y-3">
-          <h3 className="font-bold text-slate-200 text-xs uppercase tracking-wider">
-            Product Backlog ({backlogTasks.length} công việc chưa phân bổ)
-          </h3>
+              {/* Vùng Tasks trong Sprint */}
+              {isExpanded && (
+                <div className="p-3 bg-slate-950/30 border-t border-slate-800/60">
+                  <div className="max-h-[320px] overflow-y-auto pr-1 custom-scrollbar">
+                    {sprint.tasks && sprint.tasks.length > 0 ? (
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
+                        {sprint.tasks.map(task => {
+                          const taskId = task._id || task.id;
+                          return (
+                            <div
+                              key={taskId}
+                              draggable
+                              onDragStart={(e) => handleDragStart(e, taskId)}
+                              className="bg-slate-800/90 hover:bg-slate-800 border border-slate-700/60 hover:border-indigo-500/50 p-2.5 rounded-lg flex items-center justify-between text-xs cursor-grab active:cursor-grabbing transition-all shadow-sm group"
+                            >
+                              <div className="flex items-center gap-2 min-w-0 pr-2">
+                                <GripVertical className="w-3.5 h-3.5 text-slate-500 group-hover:text-indigo-400 shrink-0 transition-colors" />
+                                <span className="text-slate-200 font-medium truncate">{task.title}</span>
+                              </div>
 
-          <Droppable droppableId={BACKLOG_DROPPABLE_ID}>
-            {(provided, snapshot) => (
-              <div
-                ref={provided.innerRef}
-                {...provided.droppableProps}
-                className={`min-h-[100px] rounded-lg p-2 border border-dashed transition-colors space-y-2 ${
-                  snapshot.isDraggingOver 
-                    ? 'bg-indigo-950/30 border-indigo-500/50' 
-                    : 'bg-slate-950/40 border-slate-800'
-                }`}
-              >
-                {backlogTasks.map((task, index) => (
-                  <TaskItem key={task._id} task={task} index={index} />
-                ))}
-                {provided.placeholder}
-                {backlogTasks.length === 0 && (
-                  <div className="text-center text-slate-500 text-xs py-6">
-                    Không còn công việc nào trong Backlog.
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span className={`text-[9px] px-1.5 py-0.5 rounded font-semibold uppercase ${
+                                  task.priority === 'URGENT' ? 'bg-red-500/20 text-red-400' :
+                                  task.priority === 'HIGH' ? 'bg-orange-500/20 text-orange-400' : 'bg-slate-700 text-slate-300'
+                                }`}>
+                                  {task.priority || 'MEDIUM'}
+                                </span>
+
+                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    onClick={(e) => handleEditTask(e, task)}
+                                    title="Sửa Task"
+                                    className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-slate-200 cursor-pointer"
+                                  >
+                                    <Edit2 className="w-3 h-3" />
+                                  </button>
+                                  <button
+                                    onClick={(e) => handleDeleteTask(e, taskId)}
+                                    title="Xóa Task"
+                                    className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-red-400 cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="py-6 border border-dashed border-slate-800/80 rounded-lg text-center">
+                        <p className="text-xs text-slate-500">Sprint này chưa có task.</p>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            )}
-          </Droppable>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Khu vực Product Backlog */}
+      <div
+        onDragOver={handleDragOver}
+        onDrop={handleDropOnBacklog}
+        className="bg-slate-900/40 border border-slate-800 hover:border-slate-700/80 rounded-xl p-3.5 space-y-3 transition-colors"
+      >
+        <div className="flex justify-between items-center pb-2 border-b border-slate-800">
+          <div className="flex items-center gap-2">
+            <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+              Product Backlog
+            </h3>
+            <span className="text-[10px] bg-slate-800 text-slate-400 font-mono px-2 py-0.5 rounded-full">
+              {backlogTasks.length} task chưa gán
+            </span>
+          </div>
+          <span className="text-[11px] text-slate-500">Thả vào đây để đưa Task về Backlog</span>
         </div>
 
-      </DragDropContext>
-    </div>
-  );
-}
+        <div className="max-h-[380px] overflow-y-auto pr-1 custom-scrollbar">
+          {backlogTasks.length > 0 ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
+              {backlogTasks.map(task => {
+                const taskId = task._id || task.id;
+                return (
+                  <div
+                    key={taskId}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, taskId)}
+                    className="bg-slate-800/70 hover:bg-slate-800 border border-slate-700/50 hover:border-indigo-500/50 p-2.5 rounded-lg flex items-center justify-between text-xs cursor-grab active:cursor-grabbing transition-all shadow-sm group"
+                  >
+                    <div className="flex items-center gap-2 min-w-0 pr-2">
+                      <GripVertical className="w-3.5 h-3.5 text-slate-500 group-hover:text-indigo-400 shrink-0 transition-colors" />
+                      <span className="text-slate-200 font-medium truncate">{task.title}</span>
+                    </div>
 
-function TaskItem({ task, index }) {
-  const getPriorityBadge = (priority) => {
-    const p = priority?.toUpperCase();
-    switch (p) {
-      case 'URGENT':
-      case 'HIGH':
-        return 'bg-red-500/20 text-red-400 border-red-500/30';
-      case 'MEDIUM':
-        return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
-      default:
-        return 'bg-slate-700/60 text-slate-300 border-slate-600/40';
-    }
-  };
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded font-semibold uppercase ${
+                        task.priority === 'URGENT' ? 'bg-red-500/20 text-red-400' :
+                        task.priority === 'HIGH' ? 'bg-orange-500/20 text-orange-400' : 'bg-slate-700 text-slate-300'
+                      }`}>
+                        {task.priority || 'MEDIUM'}
+                      </span>
 
-  return (
-    <Draggable draggableId={toId(task._id)} index={index}>
-      {(provided, snapshot) => (
-        <div
-          ref={provided.innerRef}
-          {...provided.draggableProps}
-          {...provided.dragHandleProps}
-          className={`p-3 rounded-lg border transition-all flex items-center justify-between text-xs cursor-grab active:cursor-grabbing ${
-            snapshot.isDragging
-              ? 'bg-slate-800 border-indigo-500 shadow-xl shadow-indigo-500/10 scale-[1.01]'
-              : 'bg-slate-800/90 border-slate-700/70 hover:border-slate-500'
-          }`}
-          style={provided.draggableProps.style}
-        >
-          <div className="flex items-center gap-2.5 min-w-0 flex-1 mr-3">
-            <GripVertical className="w-4 h-4 text-slate-500 shrink-0" />
-            <span className="font-medium text-slate-100 truncate">{task.title}</span>
-          </div>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={(e) => handleEditTask(e, task)}
+                          title="Sửa Task"
+                          className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-slate-200 cursor-pointer"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                        </button>
+                        <button
+                          onClick={(e) => handleDeleteTask(e, taskId)}
+                          title="Xóa Task"
+                          className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-red-400 cursor-pointer"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="py-8 text-center text-slate-500 text-xs">
+              Chưa có task nào trong Product Backlog.
+            </div>
+          )}
+        </div>
+      </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            <span className={`px-2 py-0.5 rounded font-bold border text-[10px] ${getPriorityBadge(task.priority)}`}>
-              {task.priority || 'MEDIUM'}
-            </span>
-
-            {task.assigneeId && (
-              <div
-                title={task.assigneeId.name}
-                className="w-6 h-6 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-[10px] border border-indigo-400/30 shrink-0"
+      {/* Modal Tạo Sprint */}
+      {showSprintModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex justify-center items-center p-4 z-50">
+          <form onSubmit={handleCreateSprint} className="bg-slate-800 border border-slate-700 rounded-xl w-full max-w-sm p-5 space-y-4 shadow-xl">
+            <h3 className="text-xs font-bold text-slate-100 uppercase tracking-wider">Tạo Sprint Mới</h3>
+            <input
+              type="text"
+              placeholder="Tên Sprint (VD: Sprint 1 - Core Features)"
+              value={newSprintName}
+              onChange={(e) => setNewSprintName(e.target.value)}
+              className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
+              required
+            />
+            <div className="flex gap-2">
+              <button 
+                type="button" 
+                onClick={() => setShowSprintModal(false)} 
+                className="flex-1 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-xs font-medium cursor-pointer"
               >
-                {task.assigneeId.name?.charAt(0).toUpperCase()}
-              </div>
-            )}
-          </div>
+                Hủy
+              </button>
+              <button 
+                type="submit" 
+                className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-xs font-medium text-white cursor-pointer"
+              >
+                Tạo
+              </button>
+            </div>
+          </form>
         </div>
       )}
-    </Draggable>
+    </div>
   );
 }
