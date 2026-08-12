@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { 
   Sparkles, X, LayoutDashboard, ListTodo, 
-  ShieldAlert, CheckCircle, FolderKanban, PlayCircle, LogOut, User
+  ShieldAlert, CheckCircle, FolderKanban, PlayCircle, LogOut, User,
+  Globe, Columns, Calendar as CalendarIcon, AlignLeft, FileText, ClipboardList ,
+  Settings, Users, BarChart2
 } from 'lucide-react';
 import BacklogView from '../components/BacklogView';
 import ActiveSprintKanban from '../components/ActiveSprintKanban';
 import { useAuth } from '../context/AuthContext';
-
+import ProjectSummary from '../components/ProjectSummary';
 const API_BASE = 'http://localhost:5000/api';
 
 // --- MAIN WORKSPACE APP ---
@@ -19,7 +21,7 @@ export default function MainApp(
   const [tasks, setTasks] = useState([]);
   const [projectId, setProjectId] = useState(initialProjectId || '');
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('kanban');
+  const [activeTab, setActiveTab] = useState('Board');
 
   // State Modal AI Daily
   const [showAiModal, setShowAiModal] = useState(false);
@@ -152,26 +154,38 @@ export default function MainApp(
             </div>
           </div>
 
+          {/* Menu Quản lý chung */}
           <div className="space-y-1">
-            <p className="px-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Giao diện làm việc</p>
+            <p className="px-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Quản lý dự án</p>
+            
             <button
-              onClick={() => setActiveTab('kanban')}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium cursor-pointer ${
-                activeTab === 'kanban' ? 'bg-indigo-600/15 text-indigo-400 border border-indigo-500/30' : 'text-slate-400 hover:bg-slate-800/60'
+              onClick={() => setActiveTab('members')}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
+                activeTab === 'members' ? 'bg-indigo-600/15 text-indigo-400 border border-indigo-500/30' : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
               }`}
             >
-              <LayoutDashboard className="w-4 h-4 shrink-0" />
-              <span className="truncate">Active Sprint Board</span>
+              <Users className="w-4 h-4 shrink-0" />
+              <span className="truncate">Thành viên & Quyền</span>
             </button>
 
             <button
-              onClick={() => setActiveTab('backlog')}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium cursor-pointer ${
-                activeTab === 'backlog' ? 'bg-indigo-600/15 text-indigo-400 border border-indigo-500/30' : 'text-slate-400 hover:bg-slate-800/60'
+              onClick={() => setActiveTab('reports')}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
+                activeTab === 'reports' ? 'bg-indigo-600/15 text-indigo-400 border border-indigo-500/30' : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
               }`}
             >
-              <ListTodo className="w-4 h-4 shrink-0" />
-              <span className="truncate">Backlog & Sprint</span>
+              <BarChart2 className="w-4 h-4 shrink-0" />
+              <span className="truncate">Báo cáo & Thống kê</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('settings')}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
+                activeTab === 'settings' ? 'bg-indigo-600/15 text-indigo-400 border border-indigo-500/30' : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+              }`}
+            >
+              <Settings className="w-4 h-4 shrink-0" />
+              <span className="truncate">Cài đặt chung</span>
             </button>
           </div>
         </div>
@@ -206,55 +220,88 @@ export default function MainApp(
 
       {/* MAIN WORKSPACE */}
       <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden bg-[#090D16]">
-        <header className="h-13 border-b border-slate-800/80 px-6 flex items-center justify-between shrink-0 bg-[#0F172A]/40 backdrop-blur-sm">
-          <h2 className="text-xs font-bold text-slate-200 flex items-center gap-2">
-            {activeTab === 'kanban' ? <LayoutDashboard className="w-4 h-4 text-indigo-400" /> : <ListTodo className="w-4 h-4 text-indigo-400" />}
-            <span>{activeTab === 'kanban' ? 'Active Sprint Kanban Board' : 'Backlog & Planning'}</span>
-          </h2>
-          <div className="flex items-center gap-2 text-xs text-slate-400 bg-slate-900/80 px-3 py-1 rounded-md border border-slate-800">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-            <span>Project ID: <strong className="text-slate-200 font-mono">{projectId || 'Đang tải...'}</strong></span>
+        
+        {/* Header & Horizontal Tabs */}
+        <div className="bg-[#0F172A]/40 backdrop-blur-sm border-b border-slate-800/80 flex flex-col shrink-0">
+          {/* Top Header */}
+          <header className="h-14 px-6 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-7 w-7 rounded bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-xs border border-indigo-500/30">
+                FJ
+              </div>
+              <h2 className="text-sm font-bold text-slate-200">
+                Dự án hiện tại
+              </h2>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-slate-400 bg-slate-900/80 px-3 py-1.5 rounded-md border border-slate-800">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+              <span>Project ID: <strong className="text-slate-200 font-mono">{projectId || 'Đang tải...'}</strong></span>
+            </div>
+          </header>
+
+          {/* Jira-style Horizontal Tabs */}
+          <div className="flex items-center gap-1 px-4 overflow-x-auto custom-scrollbar">
+            {[
+              { id: 'summary', icon: Globe, label: 'Summary' },
+              { id: 'backlog', icon: ListTodo, label: 'Backlog' },
+              { id: 'board', icon: Columns, label: 'Board' },
+              { id: 'calendar', icon: CalendarIcon, label: 'Calendar' },
+              { id: 'timeline', icon: AlignLeft, label: 'Timeline' },
+              { id: 'docs', icon: FileText, label: 'Docs' },
+              { id: 'forms', icon: ClipboardList, label: 'Forms' },
+            ].map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-2 px-3 py-2.5 text-xs font-semibold cursor-pointer transition-all border-b-2 ${
+                    isActive 
+                      ? 'border-blue-500 text-blue-400' 
+                      : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 rounded-t-lg'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
-        </header>
+        </div>
 
         <main className="flex-1 overflow-y-auto p-5 space-y-5">
-          {activeTab === 'kanban' && (
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <div className="bg-slate-900/50 border border-slate-800/80 rounded-lg p-3 flex items-center justify-between">
-                <div><p className="text-[11px] text-slate-400">Tổng công việc</p><p className="text-base font-bold text-slate-100">{stats.total}</p></div>
-                <div className="p-2 bg-slate-800 rounded-lg text-slate-300"><ListTodo className="w-4 h-4" /></div>
-              </div>
-              <div className="bg-slate-900/50 border border-slate-800/80 rounded-lg p-3 flex items-center justify-between">
-                <div><p className="text-[11px] text-slate-400">Đang triển khai</p><p className="text-base font-bold text-blue-400">{stats.inProgress}</p></div>
-                <div className="p-2 bg-blue-500/10 rounded-lg text-blue-400"><PlayCircle className="w-4 h-4" /></div>
-              </div>
-              <div className="bg-slate-900/50 border border-slate-800/80 rounded-lg p-3 flex items-center justify-between">
-                <div><p className="text-[11px] text-slate-400">Vấn đề (Blocked)</p><p className="text-base font-bold text-red-400">{stats.blocked}</p></div>
-                <div className="p-2 bg-red-500/10 rounded-lg text-red-400"><ShieldAlert className="w-4 h-4" /></div>
-              </div>
-              <div className="bg-slate-900/50 border border-slate-800/80 rounded-lg p-3 flex items-center justify-between">
-                <div><p className="text-[11px] text-slate-400">Đã hoàn thành</p><p className="text-base font-bold text-emerald-400">{stats.done}</p></div>
-                <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-400"><CheckCircle className="w-4 h-4" /></div>
-              </div>
-            </div>
-          )}
-
+          {/* Cập nhật lại điều kiện render cho các View */}
           {loading ? (
             <div className="flex flex-col items-center justify-center py-24 text-slate-400 space-y-3">
               <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
               <span className="text-xs font-medium">Đang đồng bộ dữ liệu...</span>
             </div>
-          ) : activeTab === 'kanban' ? (
+          ) : activeTab === 'board' ? (
+            <ActiveSprintKanban 
+              projectId={projectId} 
+              onTaskUpdate={refreshTasks} 
+              onOpenCreateModal={handleOpenCreateModal}
+            />
+          ) : activeTab === 'backlog' ? (
+            <BacklogView 
+              projectId={projectId} 
+              onTaskUpdate={refreshTasks}
+            />
+          ) : activeTab === 'summary' ? (
+            <ProjectSummary tasks={tasks} />
+          ) : activeTab === 'board' ? (
             <ActiveSprintKanban 
               projectId={projectId} 
               onTaskUpdate={refreshTasks} 
               onOpenCreateModal={handleOpenCreateModal}
             />
           ) : (
-            <BacklogView 
-              projectId={projectId} 
-              onTaskUpdate={refreshTasks}
-            />
+             // Placeholder cho các tab chưa phát triển
+            <div className="flex flex-col items-center justify-center py-24 text-slate-500 space-y-4">
+              <Globe className="w-12 h-12 opacity-20" />
+              <p className="text-sm">Tính năng <strong className="text-slate-300">{activeTab.toUpperCase()}</strong> đang được phát triển.</p>
+            </div>
           )}
         </main>
       </div>
