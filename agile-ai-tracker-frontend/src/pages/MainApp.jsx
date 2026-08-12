@@ -10,6 +10,13 @@ import BacklogView from '../components/BacklogView';
 import ActiveSprintKanban from '../components/ActiveSprintKanban';
 import { useAuth } from '../context/AuthContext';
 import ProjectSummary from '../components/ProjectSummary';
+import CalendarView from '../components/CalendarView';
+import DocsView from '../components/DocsView';
+import TimelineView from '../components/TimelineView';
+import FormsView from '../components/FormsView';
+import MembersView from '../components/MembersView';
+import ReportsView from '../components/ReportsView';
+import SettingsView from '../components/SettingsView';
 const API_BASE = 'http://localhost:5000/api';
 
 // --- MAIN WORKSPACE APP ---
@@ -37,7 +44,8 @@ export default function MainApp(
     description: '',
     priority: 'MEDIUM',
     status: 'TODO',
-    assigneeName: ''
+    assigneeName: '',
+    dueDate: ''
   });
 
   useEffect(() => {
@@ -85,11 +93,13 @@ export default function MainApp(
         description: taskToEdit.description || '',
         priority: taskToEdit.priority || 'MEDIUM',
         status: taskToEdit.status || 'TODO',
-        assigneeName: taskToEdit.assigneeId?.name || ''
+        assigneeName: taskToEdit.assigneeId?.name || '',
+        // Format ngày chuẩn HTML Date Input: YYYY-MM-DD
+        dueDate: taskToEdit.dueDate ? new Date(taskToEdit.dueDate).toISOString().split('T')[0] : ''
       });
     } else {
       setEditingTask(null);
-      setTaskForm({ title: '', description: '', priority: 'MEDIUM', status: 'TODO', assigneeName: '' });
+      setTaskForm({ title: '', description: '', priority: 'MEDIUM', status: 'TODO', assigneeName: '', dueDate: '' });
     }
     setShowTaskModal(true);
   };
@@ -288,14 +298,40 @@ export default function MainApp(
               projectId={projectId} 
               onTaskUpdate={refreshTasks}
             />
+          ) : activeTab === 'calendar' ? (
+             // Thêm tab Calendar vào đây
+            <CalendarView 
+              tasks={tasks} 
+              onOpenTaskModal={handleOpenCreateModal} 
+            />
+          ) : activeTab === 'timeline' ? (
+             // Thêm tab Timeline vào đây
+            <TimelineView 
+              tasks={tasks} 
+              onOpenTaskModal={handleOpenCreateModal} 
+            />
+          ) : activeTab === 'forms' ? (
+            <FormsView 
+              projectId={projectId} 
+              onTaskUpdate={refreshTasks} 
+            />
+            
           ) : activeTab === 'summary' ? (
             <ProjectSummary tasks={tasks} />
+          ) : activeTab === 'docs' ? (
+            <DocsView projectId={projectId} />
           ) : activeTab === 'board' ? (
             <ActiveSprintKanban 
               projectId={projectId} 
               onTaskUpdate={refreshTasks} 
               onOpenCreateModal={handleOpenCreateModal}
             />
+          ) : activeTab === 'members' ? (
+            <MembersView projectId={projectId} />
+          ) : activeTab === 'reports' ? (
+            <ReportsView projectId={projectId} />
+          ) : activeTab === 'settings' ? (
+            <SettingsView projectId={projectId} />
           ) : (
              // Placeholder cho các tab chưa phát triển
             <div className="flex flex-col items-center justify-center py-24 text-slate-500 space-y-4">
@@ -322,6 +358,15 @@ export default function MainApp(
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">Mô tả</label>
                 <textarea rows={3} value={taskForm.description} onChange={(e) => setTaskForm({ ...taskForm, description: e.target.value })} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Ngày đến hạn (Deadline)</label>
+                <input 
+                  type="date" 
+                  value={taskForm.dueDate} 
+                  onChange={(e) => setTaskForm({ ...taskForm, dueDate: e.target.value })} 
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500 cursor-pointer" 
+                />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

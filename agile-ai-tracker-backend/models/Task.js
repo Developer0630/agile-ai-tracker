@@ -14,7 +14,8 @@ const TaskSchema = new mongoose.Schema({
   priority: { type: String, enum: ['LOW', 'MEDIUM', 'HIGH', 'URGENT'], default: 'MEDIUM' },
   tags: [{ type: String }], // Kỹ năng yêu cầu cho task (VD: ['Frontend', 'API'])
   isBlocked: { type: Boolean, default: false },
-  blockerReason: String
+  blockerReason: String,
+  dueDate: { type: Date }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Task', TaskSchema);
