@@ -12,6 +12,7 @@ app.use(cors());
 app.use(express.json());
 
 // Main Routes
+app.use('/api/auth', require('./routes/authRoutes')); // Thêm Auth Route
 app.use('/api/projects', require('./routes/projectRoutes'));
 app.use('/api/tasks', require('./routes/taskRoutes'));
 app.use('/api/daily', require('./routes/dailyRoutes'));
