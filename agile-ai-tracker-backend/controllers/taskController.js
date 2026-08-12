@@ -1,4 +1,6 @@
 const Task = require('../models/Task');
+const Activity = require('../models/Activity');
+const { logActivity } = require('./activityController');
 const mongoose = require('mongoose');
 
 // 1. Lấy toàn bộ danh sách Task
@@ -14,7 +16,20 @@ exports.getAllTasks = async (req, res) => {
 // 2. Tạo Task mới
 exports.createTask = async (req, res) => {
   try {
-    const task = await Task.create(req.body);
+    const taskData = { ...req.body };
+    if (!taskData.assigneeId || taskData.assigneeId === '') {
+      taskData.assigneeId = null;
+    }
+
+    const task = await Task.create(taskData);
+    
+    // Ghi log khi tạo task mới
+    const taskId = task._id || task.id;
+    const userId = req.user?.id;
+    if (taskId && userId) {
+      await logActivity(taskId, userId, "đã tạo task mới", task.title);
+    }
+
     res.status(201).json({ success: true, data: task });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
@@ -89,17 +104,20 @@ exports.getTasksBySprint = async (req, res) => {
 exports.updateTaskStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ success: false, message: 'ID Task không hợp lệ!' });
-    }
+    const { status } = req.body;
+    const userId = req.user?.id;
 
-    const { status, isBlocked, blockerReason } = req.body;
     const task = await Task.findByIdAndUpdate(
       id,
-      { status, isBlocked, blockerReason },
+      { status },
       { new: true, runValidators: true }
     );
+    
     if (!task) return res.status(404).json({ success: false, message: 'Không tìm thấy Task!' });
+
+    if (userId) {
+      await logActivity(id, userId, "đã đổi trạng thái", `sang ${status}`);
+    }
 
     res.status(200).json({ success: true, data: task });
   } catch (error) {
@@ -116,7 +134,11 @@ exports.updateTask = async (req, res) => {
     }
 
     const updateData = { ...req.body };
-
+    if ('assigneeId' in updateData) {
+      if (!updateData.assigneeId || updateData.assigneeId === '' || updateData.assigneeId === 'null') {
+        updateData.assigneeId = null;
+      }
+    }
     if ('sprintId' in updateData) {
       const rawSprintId = updateData.sprintId;
       if (
@@ -137,7 +159,10 @@ exports.updateTask = async (req, res) => {
     ).populate('assigneeId', 'name email');
     
     if (!task) return res.status(404).json({ success: false, message: 'Không tìm thấy Task!' });
-
+    const userId = req.user?.id;
+    if (userId) {
+      await logActivity(id, userId, "đã cập nhật thông tin", "của task");
+    }
     res.status(200).json({ success: true, data: task });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
@@ -156,6 +181,58 @@ exports.deleteTask = async (req, res) => {
     if (!task) return res.status(404).json({ success: false, message: 'Không tìm thấy Task!' });
 
     res.status(200).json({ success: true, message: 'Đã xóa Task thành công!' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+exports.toggleSubtask = async (req, res) => {
+  try {
+    const { taskId, subtaskId } = req.params;
+    const task = await Task.findById(taskId);
+    
+    if (!task) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy task!' });
+    }
+
+    const subtask = task.subtasks.id(subtaskId);
+    if (!subtask) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy subtask!' });
+    }
+
+    // Đảo ngược trạng thái completed
+    subtask.completed = !subtask.completed;
+    await task.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Cập nhật subtask thành công!',
+      data: task
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+// Phải có chữ "exports." ở trước tên hàm thế này:
+exports.getTaskActivities = async (req, res) => {
+  try {
+    const activities = await Activity.find({ taskId: req.params.taskId })
+      .populate('userId', 'name')
+      .sort({ createdAt: -1 });
+    res.status(200).json({ success: true, data: activities });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+exports.addComment = async (req, res) => {
+  try {
+    const { id } = req.params; // taskId
+    const { content } = req.body;
+    const userId = req.user.id;
+
+    // Ghi log với hành động là 'comment'
+    await logActivity(id, userId, "đã bình luận", content);
+
+    res.status(200).json({ success: true, message: "Đã thêm bình luận" });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

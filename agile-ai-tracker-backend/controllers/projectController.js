@@ -40,3 +40,11 @@ exports.createProject = async (req, res) => {
     res.status(400).json({ success: false, message: error.message });
   }
 };
+exports.getProjectMembers = async (req, res) => {
+  try {
+    const project = await Project.findById(req.params.projectId).populate('members', 'name email');
+    res.status(200).json({ success: true, data: project.members });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};

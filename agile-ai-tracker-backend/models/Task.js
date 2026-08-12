@@ -1,5 +1,9 @@
 const mongoose = require('mongoose');
 
+const subtaskSchema = new mongoose.Schema({
+  title: { type: String, required: true },
+  completed: { type: Boolean, default: false }
+});
 const TaskSchema = new mongoose.Schema({
   title: { type: String, required: true },
   description: String,
@@ -15,7 +19,8 @@ const TaskSchema = new mongoose.Schema({
   tags: [{ type: String }], // Kỹ năng yêu cầu cho task (VD: ['Frontend', 'API'])
   isBlocked: { type: Boolean, default: false },
   blockerReason: String,
-  dueDate: { type: Date }
+  dueDate: { type: Date },
+  subtasks: [subtaskSchema]
 }, { timestamps: true });
 
 module.exports = mongoose.model('Task', TaskSchema);

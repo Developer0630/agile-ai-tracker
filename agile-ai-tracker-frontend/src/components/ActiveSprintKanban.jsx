@@ -41,7 +41,7 @@ export default function ActiveSprintKanban({ projectId, onTaskUpdate, onOpenCrea
     fetchKanbanData();
 
     return () => { isMounted = false; };
-  }, [projectId]);
+  }, [projectId, onTaskUpdate]);
 
   const handleDeleteTask = async (taskId) => {
     if (!window.confirm('Bạn có chắc chắn muốn xóa task này?')) return;
@@ -60,7 +60,8 @@ export default function ActiveSprintKanban({ projectId, onTaskUpdate, onOpenCrea
     setTasks(prev => prev.map(t => (t._id || t.id) === taskId ? { ...t, status: newStatus } : t));
 
     try {
-      await axios.put(`${API_BASE}/tasks/${taskId}`, { status: newStatus });
+      // Sửa lại đoạn này: Gọi đúng vào route /status chuyên biệt của backend
+      await axios.put(`${API_BASE}/tasks/${taskId}/status`, { status: newStatus });
       if (onTaskUpdate) onTaskUpdate();
     } catch (err) {
       console.error('Lỗi cập nhật trạng thái:', err);
@@ -128,8 +129,8 @@ export default function ActiveSprintKanban({ projectId, onTaskUpdate, onOpenCrea
         {columns.map(col => {
           const colTasks = tasks.filter(t => t.status === col.id);
           return (
-            <div 
-              key={col.id} 
+            <div
+              key={col.id}
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, col.id)}
               className="bg-slate-900/40 border border-slate-800/80 rounded-xl p-3 flex flex-col min-h-[500px] transition-colors hover:border-slate-700/80"
@@ -143,10 +144,16 @@ export default function ActiveSprintKanban({ projectId, onTaskUpdate, onOpenCrea
                 {colTasks.map(task => {
                   const tId = task._id || task.id;
                   return (
-                    <div 
-                      key={tId} 
+                    <div
+                      key={tId}
                       draggable
                       onDragStart={(e) => handleDragStart(e, tId)}
+                      onClick={(e) => {
+                        // Chỉ mở chi tiết khi người dùng click trực tiếp vào card (tránh click nhầm nút xóa/sửa)
+                        if (!e.target.closest('button') && !e.target.closest('select')) {
+                          onOpenCreateModal(task);
+                        }
+                      }}
                       className="bg-slate-800/90 border border-slate-700/60 hover:border-indigo-500/50 p-3 rounded-lg shadow-sm space-y-2 group transition-all cursor-grab active:cursor-grabbing"
                     >
                       <div className="flex items-start justify-between gap-2">
@@ -166,11 +173,10 @@ export default function ActiveSprintKanban({ projectId, onTaskUpdate, onOpenCrea
                       )}
 
                       <div className="flex items-center justify-between pt-1 border-t border-slate-700/40 text-[10px]">
-                        <span className={`font-semibold px-1.5 py-0.5 rounded ${
-                          task.priority === 'URGENT' ? 'bg-red-500/20 text-red-400' :
-                          task.priority === 'HIGH' ? 'bg-orange-500/20 text-orange-400' :
-                          task.priority === 'MEDIUM' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-slate-700 text-slate-300'
-                        }`}>
+                        <span className={`font-semibold px-1.5 py-0.5 rounded ${task.priority === 'URGENT' ? 'bg-red-500/20 text-red-400' :
+                            task.priority === 'HIGH' ? 'bg-orange-500/20 text-orange-400' :
+                              task.priority === 'MEDIUM' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-slate-700 text-slate-300'
+                          }`}>
                           {task.priority || 'MEDIUM'}
                         </span>
 

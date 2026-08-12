@@ -20,6 +20,7 @@
   "author": "VKU Student",
   "license": "ISC",
   "dependencies": {
+    "@google/genai": "^2.16.0",
     "@google/generative-ai": "^0.21.0",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",

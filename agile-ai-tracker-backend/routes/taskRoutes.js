@@ -8,19 +8,23 @@ const {
   createTask,
   updateTask,
   updateTaskStatus,
-  deleteTask
+  deleteTask,
+  addComment,
 } = require('../controllers/taskController');
-
+const { toggleSubtask } = require('../controllers/taskController');
+const { protect } = require('../middleware/authMiddleware');
 // 1. Quản lý Task chung & Backlog
-router.get('/', getAllTasks); // Lấy toàn bộ task
-router.post('/', createTask); // Tạo task mới
-router.get('/project/:projectId', getTasksByProject); // Task theo Project
-router.get('/backlog/:projectId', getBacklogTasks); // Product Backlog
-router.get('/sprint/:sprintId', getTasksBySprint); // Sprint Backlog (Kanban)
+router.get('/', protect, getAllTasks); // Lấy toàn bộ task
+router.post('/', protect, createTask); // Tạo task mới
+router.get('/project/:projectId', protect, getTasksByProject); // Task theo Project
+router.get('/backlog/:projectId', protect, getBacklogTasks); // Product Backlog
+router.get('/sprint/:sprintId', protect, getTasksBySprint); // Sprint Backlog (Kanban)
 
 // 2. Cập nhật & Xóa Task
-router.put('/:id/status', updateTaskStatus); // Cập nhật trạng thái kéo/thả Kanban
-router.put('/:id', updateTask); // Cập nhật chung (đổi Sprint, sửa nội dung)
-router.delete('/:id', deleteTask); // Xóa task
+router.put('/:id/status', protect, updateTaskStatus); // Cập nhật trạng thái kéo/thả Kanban
+router.put('/:id', protect, updateTask); // Cập nhật chung (đổi Sprint, sửa nội dung)
+router.delete('/:id', protect, deleteTask); // Xóa task
 
+router.patch('/:taskId/subtasks/:subtaskId', protect, toggleSubtask);
+router.post('/:id/comment', protect, addComment);
 module.exports = router;
