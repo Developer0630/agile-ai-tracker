@@ -1,10 +1,28 @@
+// backend/models/Project.js
 const mongoose = require('mongoose');
 
-const ProjectSchema = new mongoose.Schema({
+const projectSchema = new mongoose.Schema({
   name: { type: String, required: true },
-  description: String,
+  key: { 
+    type: String, 
+    uppercase: true, 
+    default: function() {
+      return this.name ? this.name.substring(0, 3).toUpperCase() : 'FJR';
+    }
+  }, // VD: FJR
+  description: { type: String, default: '' },
   owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  members: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
+  members: [
+    {
+      user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+      role: { 
+        type: String, 
+        enum: ['ADMIN', 'PM', 'MEMBER', 'VIEWER'], 
+        default: 'MEMBER' 
+      },
+      joinedAt: { type: Date, default: Date.now }
+    }
+  ]
 }, { timestamps: true });
 
-module.exports = mongoose.model('Project', ProjectSchema);
+module.exports = mongoose.model('Project', projectSchema);

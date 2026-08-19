@@ -1,10 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import axios from 'axios';
 import {
-  Sparkles, X, LayoutDashboard, ListTodo,
-  ShieldAlert, CheckCircle, FolderKanban, PlayCircle, LogOut, User,
+  Sparkles, X, FolderKanban, LogOut, User,
   Globe, Columns, Calendar as CalendarIcon, AlignLeft, FileText, ClipboardList,
-  Settings, Users, BarChart2
+  Settings, Users, BarChart2, ListTodo
 } from 'lucide-react';
 import BacklogView from '../components/BacklogView';
 import ActiveSprintKanban from '../components/ActiveSprintKanban';
@@ -19,31 +18,34 @@ import ReportsView from '../components/ReportsView';
 import SettingsView from '../components/SettingsView';
 import AIChatBar from '../components/AIChatBar';
 import TaskSubtaskSection from '../components/TaskSubtaskSection';
+
 const API_BASE = 'http://localhost:5000/api';
 
-// --- MAIN WORKSPACE APP ---
-export default function MainApp(
-  {
-    projectId: initialProjectId
-  }) {
+const getAuthConfig = () => {
+  const token = localStorage.getItem('token');
+  return {
+    headers: { Authorization: `Bearer ${token}` }
+  };
+};
+
+export default function MainApp({ projectId: initialProjectId, onBackToDashboard }) {
   const { user, logout } = useAuth();
   const [tasks, setTasks] = useState([]);
+  const [project, setProject] = useState(null);
   const [projectId, setProjectId] = useState(initialProjectId || '');
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('Board');
+  const [activeTab, setActiveTab] = useState('board');
   const [activityFilter, setActivityFilter] = useState('All');
   const [activities, setActivities] = useState([]);
   const [newComment, setNewComment] = useState('');
-  const fetchActivities = async (taskId) => {
-    const res = await axios.get(`${API_BASE}/activities/${taskId}`);
-    setActivities(res.data.data);
-  };
+  const [members, setMembers] = useState([]);
+
   // State Modal AI Daily
   const [showAiModal, setShowAiModal] = useState(false);
   const [reportText, setReportText] = useState('');
   const [aiAnalyzing, setAiAnalyzing] = useState(false);
   const [aiResult, setAiResult] = useState(null);
-  const [members, setMembers] = useState([]);
+
   // State Modal Task
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
@@ -52,52 +54,86 @@ export default function MainApp(
     description: '',
     priority: 'MEDIUM',
     status: 'TODO',
-    assigneeName: '',
+    assigneeId: '',
     dueDate: ''
   });
 
-  useEffect(() => {
-    let isMounted = true;
-    const loadData = async () => {
-      try {
-        const resProjects = await axios.get(`${API_BASE}/projects`);
-        console.log('Dữ liệu dự án:', resProjects.data);
-        const projectList = resProjects.data.data || resProjects.data;
-        console.log('Danh sách dự án:', projectList);
+  // Tính toán quyền của người dùng hiện tại trong dự án
+  const currentUserRole = useMemo(() => {
+    if (!project || !user) return 'VIEWER';
+    const userId = user._id || user.id;
+    const ownerId = typeof project.owner === 'object' ? project.owner?._id : project.owner;
 
-        if (isMounted && Array.isArray(projectList) && projectList.length > 0) {
+    if (ownerId && ownerId.toString() === userId.toString()) return 'OWNER';
 
-          const pId = projectList[0]._id || projectList[0].id;
-          setProjectId(pId);
+    const memberObj = project.members?.find(m => {
+      const mUserId = typeof m.user === 'object' ? m.user?._id : m.user;
+      return mUserId && mUserId.toString() === userId.toString();
+    });
 
-          // Gọi lấy members SAU KHI đã có pId
-          const resMembers = await axios.get(`${API_BASE}/projects/${pId}/members`);
-          setMembers(resMembers.data.data || []);
-          const resTasks = await axios.get(`${API_BASE}/tasks/project/${pId}`);
-          const taskList = resTasks.data.data || resTasks.data;
-          if (isMounted) setTasks(Array.isArray(taskList) ? taskList : []);
-        }
-      } catch (error) {
-        console.error('Lỗi tải dữ liệu:', error);
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    };
+    return memberObj?.role || 'VIEWER';
+  }, [project, user]);
 
-    loadData();
-    return () => { isMounted = false; };
-  }, []);
-
-  const refreshTasks = async (currentProjectId = projectId) => {
-    if (!currentProjectId) return;
+  const fetchActivities = async (taskId) => {
     try {
-      const resTasks = await axios.get(`${API_BASE}/tasks/project/${currentProjectId}`);
+      const res = await axios.get(`${API_BASE}/activities/${taskId}`, getAuthConfig());
+      setActivities(res.data.data || []);
+    } catch (err) {
+      console.error('Lỗi tải activity:', err);
+    }
+  };
+
+  const refreshTasks = useCallback(async (currId = projectId) => {
+    if (!currId) return;
+    try {
+      const resTasks = await axios.get(`${API_BASE}/tasks/project/${currId}`, getAuthConfig());
       const taskList = resTasks.data.data || resTasks.data;
       setTasks(Array.isArray(taskList) ? taskList : []);
     } catch (error) {
       console.error('Lỗi reload tasks:', error);
     }
-  };
+  }, [projectId]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadProjectData = async () => {
+      try {
+        setLoading(true);
+        // 1. Lấy danh sách dự án mà user có quyền truy cập
+        const resProjects = await axios.get(`${API_BASE}/projects`, getAuthConfig());
+        const projectList = resProjects.data.data || resProjects.data || [];
+
+        if (isMounted && projectList.length > 0) {
+          // Ưu tiên projectId truyền vào từ dashboard, nếu không có lấy dự án đầu tiên
+          const activeProj = projectList.find(p => (p._id || p.id) === initialProjectId) || projectList[0];
+          const activeId = activeProj._id || activeProj.id;
+          
+          setProject(activeProj);
+          setProjectId(activeId);
+
+          // 2. Lấy danh sách thành viên & tasks
+          const [resMembers, resTasks] = await Promise.all([
+            axios.get(`${API_BASE}/projects/${activeId}/members`, getAuthConfig()),
+            axios.get(`${API_BASE}/tasks/project/${activeId}`, getAuthConfig())
+          ]);
+
+          if (isMounted) {
+            setMembers(resMembers.data.data || []);
+            const taskList = resTasks.data.data || resTasks.data;
+            setTasks(Array.isArray(taskList) ? taskList : []);
+          }
+        }
+      } catch (error) {
+        console.error('Lỗi tải dữ liệu workspace:', error);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    loadProjectData();
+    return () => { isMounted = false; };
+  }, [initialProjectId]);
 
   const handleOpenCreateModal = (taskToEdit = null) => {
     if (taskToEdit) {
@@ -108,16 +144,13 @@ export default function MainApp(
         priority: taskToEdit.priority || 'MEDIUM',
         status: taskToEdit.status || 'TODO',
         assigneeId: taskToEdit.assigneeId?._id || taskToEdit.assigneeId || '',
-        // Format ngày chuẩn HTML Date Input: YYYY-MM-DD
         dueDate: taskToEdit.dueDate ? new Date(taskToEdit.dueDate).toISOString().split('T')[0] : ''
       });
       const tId = taskToEdit._id || taskToEdit.id;
-      if (tId) {
-        fetchActivities(tId);
-      }
+      if (tId) fetchActivities(tId);
     } else {
       setEditingTask(null);
-      setTaskForm({ title: '', description: '', priority: 'MEDIUM', status: 'TODO', assigneeName: '', dueDate: '' });
+      setTaskForm({ title: '', description: '', priority: 'MEDIUM', status: 'TODO', assigneeId: '', dueDate: '' });
     }
     setShowTaskModal(true);
   };
@@ -128,23 +161,13 @@ export default function MainApp(
 
     try {
       if (editingTask) {
-        // Lấy chính xác _id hoặc id của task đang sửa
         const taskId = editingTask._id || editingTask.id;
-        if (!taskId) {
-          alert('Không tìm thấy ID của Task cần sửa!');
-          return;
-        }
-
-        // Gọi đúng route PUT /api/tasks/:id
-        const res = await axios.put(`${API_BASE}/tasks/${taskId}`, taskForm);
-
+        const res = await axios.put(`${API_BASE}/tasks/${taskId}`, taskForm, getAuthConfig());
         if (res.data.success) {
-          // Cập nhật lại state tasks ngay lập tức
           setTasks(tasks.map(t => ((t._id || t.id) === taskId ? res.data.data : t)));
         }
       } else {
-        // Tạo mới task
-        const res = await axios.post(`${API_BASE}/tasks`, { ...taskForm, projectId });
+        const res = await axios.post(`${API_BASE}/tasks`, { ...taskForm, projectId }, getAuthConfig());
         if (res.data.success) {
           setTasks([...tasks, res.data.data]);
         }
@@ -152,24 +175,22 @@ export default function MainApp(
 
       setShowTaskModal(false);
       setEditingTask(null);
-      await refreshTasks(projectId); // Làm mới dữ liệu toàn ứng dụng
+      await refreshTasks(projectId);
     } catch (error) {
-      console.error('Lỗi khi lưu task:', error);
       alert(`Lỗi: ${error.response?.data?.message || 'Không thể cập nhật Task!'}`);
     }
   };
+
   const handleSendComment = async (taskId) => {
     if (!newComment.trim()) return;
-
     try {
-      await axios.post(`${API_BASE}/tasks/${taskId}/comment`, { content: newComment });
-      setNewComment(''); // Xóa nội dung input sau khi gửi
-      fetchActivities(taskId); // Tải lại log để thấy bình luận mới ngay
-    } catch (error) {
-      alert("Không thể gửi bình luận!");
+      await axios.post(`${API_BASE}/tasks/${taskId}/comment`, { content: newComment }, getAuthConfig());
+      setNewComment('');
+      fetchActivities(taskId);
+    } catch {
+      alert('Không thể gửi bình luận!');
     }
   };
-
 
   const handleSubmitDaily = async () => {
     if (!reportText.trim()) return;
@@ -179,37 +200,28 @@ export default function MainApp(
         projectId,
         userId: user?._id || user?.id,
         rawContent: reportText
-      });
+      }, getAuthConfig());
       setAiResult(res.data.data.aiAnalysis);
       await refreshTasks();
-    } catch (error) {
-      console.error('Lỗi AI:', error);
+    } catch {
       alert('Lỗi khi phân tích báo cáo AI!');
     } finally {
       setAiAnalyzing(false);
     }
   };
 
-  const stats = {
-    total: tasks.length,
-    inProgress: tasks.filter(t => t.status === 'IN_PROGRESS').length,
-    blocked: tasks.filter(t => t.isBlocked).length,
-    done: tasks.filter(t => t.status === 'DONE').length
-  };
-
   return (
     <div className="flex h-screen w-full bg-[#090D16] text-slate-100 font-sans antialiased overflow-hidden m-0 p-0">
-
       {/* SIDEBAR */}
       <aside className="w-60 bg-[#0F172A] border-r border-slate-800/80 flex flex-col justify-between shrink-0 h-full">
         <div className="p-4 space-y-5">
-          <div className="flex items-center gap-3 px-1">
+          <div className="flex items-center gap-3 px-1 cursor-pointer" onClick={onBackToDashboard}>
             <div className="h-8 w-8 rounded-lg bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center shadow-md shrink-0">
               <FolderKanban className="w-4 h-4 text-white" />
             </div>
             <div className="min-w-0 flex-1">
-              <h1 className="text-sm font-bold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent truncate">FJra</h1>
-              <p className="text-[10px] text-slate-400 font-medium truncate">Agile Project Manager</p>
+              <h1 className="text-sm font-bold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent truncate">FJra Workspace</h1>
+              <p className="text-[10px] text-slate-400 font-medium truncate">{project?.name || 'Agile Project'}</p>
             </div>
           </div>
 
@@ -219,8 +231,9 @@ export default function MainApp(
 
             <button
               onClick={() => setActiveTab('members')}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium cursor-pointer transition-colors ${activeTab === 'members' ? 'bg-indigo-600/15 text-indigo-400 border border-indigo-500/30' : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
-                }`}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
+                activeTab === 'members' ? 'bg-indigo-600/15 text-indigo-400 border border-indigo-500/30' : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+              }`}
             >
               <Users className="w-4 h-4 shrink-0" />
               <span className="truncate">Thành viên & Quyền</span>
@@ -228,8 +241,9 @@ export default function MainApp(
 
             <button
               onClick={() => setActiveTab('reports')}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium cursor-pointer transition-colors ${activeTab === 'reports' ? 'bg-indigo-600/15 text-indigo-400 border border-indigo-500/30' : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
-                }`}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
+                activeTab === 'reports' ? 'bg-indigo-600/15 text-indigo-400 border border-indigo-500/30' : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+              }`}
             >
               <BarChart2 className="w-4 h-4 shrink-0" />
               <span className="truncate">Báo cáo & Thống kê</span>
@@ -237,8 +251,9 @@ export default function MainApp(
 
             <button
               onClick={() => setActiveTab('settings')}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium cursor-pointer transition-colors ${activeTab === 'settings' ? 'bg-indigo-600/15 text-indigo-400 border border-indigo-500/30' : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
-                }`}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
+                activeTab === 'settings' ? 'bg-indigo-600/15 text-indigo-400 border border-indigo-500/30' : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+              }`}
             >
               <Settings className="w-4 h-4 shrink-0" />
               <span className="truncate">Cài đặt chung</span>
@@ -246,7 +261,7 @@ export default function MainApp(
           </div>
         </div>
 
-        {/* PROFILE & LOGOUT SECTION */}
+        {/* Profile Section */}
         <div className="p-3 border-t border-slate-800/80 space-y-2">
           <button onClick={() => setShowAiModal(true)} className="w-full flex items-center justify-between p-2.5 bg-slate-900 hover:bg-slate-800/80 border border-slate-800 rounded-lg text-xs font-medium text-slate-200 cursor-pointer">
             <div className="flex items-center gap-2 min-w-0">
@@ -261,13 +276,12 @@ export default function MainApp(
               <div className="p-1 bg-slate-800 rounded-full text-slate-300">
                 <User className="w-3.5 h-3.5" />
               </div>
-              <span className="text-xs font-medium text-slate-200 truncate">{user?.name || user?.email || 'User'}</span>
+              <div className="truncate">
+                <span className="text-xs font-medium text-slate-200 block truncate">{user?.name || user?.email}</span>
+                <span className="text-[10px] text-indigo-400 font-mono block uppercase">{currentUserRole}</span>
+              </div>
             </div>
-            <button
-              onClick={logout}
-              title="Đăng xuất"
-              className="p-1 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded transition-colors cursor-pointer"
-            >
+            <button onClick={logout} title="Đăng xuất" className="p-1 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded cursor-pointer">
               <LogOut className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -276,26 +290,22 @@ export default function MainApp(
 
       {/* MAIN WORKSPACE */}
       <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden bg-[#090D16]">
-
-        {/* Header & Horizontal Tabs */}
+        {/* Header & Tabs */}
         <div className="bg-[#0F172A]/40 backdrop-blur-sm border-b border-slate-800/80 flex flex-col shrink-0">
-          {/* Top Header */}
           <header className="h-14 px-6 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="h-7 w-7 rounded bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-xs border border-indigo-500/30">
-                FJ
+                {project?.key || 'FJ'}
               </div>
-              <h2 className="text-sm font-bold text-slate-200">
-                Dự án hiện tại
-              </h2>
+              <h2 className="text-sm font-bold text-slate-200">{project?.name || 'Dự án hiện tại'}</h2>
             </div>
             <div className="flex items-center gap-2 text-xs text-slate-400 bg-slate-900/80 px-3 py-1.5 rounded-md border border-slate-800">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-              <span>Project ID: <strong className="text-slate-200 font-mono">{projectId || 'Đang tải...'}</strong></span>
+              <span>Role của bạn: <strong className="text-indigo-300 font-semibold">{currentUserRole}</strong></span>
             </div>
           </header>
 
-          {/* Jira-style Horizontal Tabs */}
+          {/* Jira Tabs */}
           <div className="flex items-center gap-1 px-4 overflow-x-auto custom-scrollbar">
             {[
               { id: 'summary', icon: Globe, label: 'Summary' },
@@ -312,10 +322,9 @@ export default function MainApp(
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 px-3 py-2.5 text-xs font-semibold cursor-pointer transition-all border-b-2 ${isActive
-                    ? 'border-blue-500 text-blue-400'
-                    : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 rounded-t-lg'
-                    }`}
+                  className={`flex items-center gap-2 px-3 py-2.5 text-xs font-semibold cursor-pointer transition-all border-b-2 ${
+                    isActive ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 rounded-t-lg'
+                  }`}
                 >
                   <Icon className="w-4 h-4" />
                   {tab.label}
@@ -325,9 +334,10 @@ export default function MainApp(
           </div>
         </div>
 
+        {/* Dynamic Workspace Views */}
         <main className="flex-1 overflow-y-auto p-5 space-y-5">
-          <AIChatBar projectId={projectId} onTaskCreated={refreshTasks} />
-          {/* Cập nhật lại điều kiện render cho các View */}
+          <AIChatBar projectId={projectId} onTaskCreated={() => refreshTasks(projectId)} />
+
           {loading ? (
             <div className="flex flex-col items-center justify-center py-24 text-slate-400 space-y-3">
               <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
@@ -336,22 +346,20 @@ export default function MainApp(
           ) : activeTab === 'board' ? (
             <ActiveSprintKanban
               projectId={projectId}
-              onTaskUpdate={refreshTasks}
+              onTaskUpdate={() => refreshTasks(projectId)}
               onOpenCreateModal={handleOpenCreateModal}
             />
           ) : activeTab === 'backlog' ? (
             <BacklogView
               projectId={projectId}
-              onTaskUpdate={refreshTasks}
+              onTaskUpdate={() => refreshTasks(projectId)}
             />
           ) : activeTab === 'calendar' ? (
-            // Thêm tab Calendar vào đây
             <CalendarView
               tasks={tasks}
               onOpenTaskModal={handleOpenCreateModal}
             />
           ) : activeTab === 'timeline' ? (
-            // Thêm tab Timeline vào đây
             <TimelineView
               tasks={tasks}
               onOpenTaskModal={handleOpenCreateModal}
@@ -359,206 +367,145 @@ export default function MainApp(
           ) : activeTab === 'forms' ? (
             <FormsView
               projectId={projectId}
-              onTaskUpdate={refreshTasks}
+              onTaskUpdate={() => refreshTasks(projectId)}
             />
-
           ) : activeTab === 'summary' ? (
-            <ProjectSummary tasks={tasks} />
+            <ProjectSummary tasks={tasks} project={project} />
           ) : activeTab === 'docs' ? (
             <DocsView projectId={projectId} />
-          ) : activeTab === 'board' ? (
-            <ActiveSprintKanban
-              projectId={projectId}
-              onTaskUpdate={refreshTasks}
-              onOpenCreateModal={handleOpenCreateModal}
-            />
           ) : activeTab === 'members' ? (
-            <MembersView projectId={projectId} />
+            <MembersView 
+              projectId={projectId} 
+              currentUserRole={currentUserRole} 
+            />
           ) : activeTab === 'reports' ? (
             <ReportsView projectId={projectId} />
           ) : activeTab === 'settings' ? (
             <SettingsView projectId={projectId} />
-          ) : (
-            // Placeholder cho các tab chưa phát triển
-            <div className="flex flex-col items-center justify-center py-24 text-slate-500 space-y-4">
-              <Globe className="w-12 h-12 opacity-20" />
-              <p className="text-sm">Tính năng <strong className="text-slate-300">{activeTab.toUpperCase()}</strong> đang được phát triển.</p>
-            </div>
-          )}
+          ) : null}
         </main>
       </div>
 
-      {/* Modal Task */}
+      {/* Modal Task Detail */}
       {showTaskModal && (
         <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm flex justify-end z-50 animate-fadeIn">
-          {/* Khung Sidebar trượt từ phải sang */}
           <div className="bg-[#0B132B] border-l border-slate-800/80 w-full max-w-4xl h-full p-6 shadow-2xl flex flex-col justify-between overflow-hidden">
-
-            {/* Top Action Bar */}
             <div className="flex items-center justify-between pb-4 border-b border-slate-800/80 shrink-0">
               <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
                 <span className="text-indigo-400 font-semibold bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
-                  {projectId ? `PROJECT-${projectId.slice(-4).toUpperCase()}` : 'TASK'}
+                  {project?.key || 'TASK'}
                 </span>
                 <span className="text-slate-600">/</span>
                 <span className="text-slate-200 font-medium truncate max-w-xs">{editingTask ? editingTask.title : 'Task mới'}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowTaskModal(false)}
-                  className="text-slate-400 hover:text-white bg-slate-800/50 hover:bg-slate-800 p-2 rounded-xl transition-all cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setShowTaskModal(false)}
+                className="text-slate-400 hover:text-white bg-slate-800/50 hover:bg-slate-800 p-2 rounded-xl cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
-            {/* Nội dung chính chia 2 cột cuộn độc lập */}
             <form onSubmit={handleSaveTask} className="flex-1 flex gap-6 pt-5 overflow-hidden">
-
-              {/* CỘT BÊN TRÁI: Tiêu đề, Mô tả, Subtasks (Cuộn riêng) */}
               <div className="flex-1 space-y-5 overflow-y-auto pr-3 custom-scrollbar">
-                <div>
-                  <input
-                    type="text"
-                    required
-                    value={taskForm.title}
-                    onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })}
-                    className="w-full bg-transparent text-base font-bold text-slate-100 placeholder-slate-600 focus:outline-none border-b border-transparent focus:border-indigo-500 pb-2 transition-all"
-                    placeholder="Tên công việc..."
-                  />
-                </div>
-
+                <input
+                  type="text"
+                  required
+                  value={taskForm.title}
+                  onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })}
+                  className="w-full bg-transparent text-base font-bold text-slate-100 placeholder-slate-600 focus:outline-none border-b border-transparent focus:border-indigo-500 pb-2 transition-all"
+                  placeholder="Tên công việc..."
+                />
                 <div>
                   <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Description</label>
                   <textarea
                     rows={5}
                     value={taskForm.description}
                     onChange={(e) => setTaskForm({ ...taskForm, description: e.target.value })}
-                    className="w-full bg-slate-900/90 border border-slate-800/80 rounded-xl p-3.5 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-all resize-none leading-relaxed shadow-inner"
+                    className="w-full bg-slate-900/90 border border-slate-800/80 rounded-xl p-3.5 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500 resize-none"
                     placeholder="Thêm mô tả chi tiết cho công việc này..."
                   />
                 </div>
 
-                {/* Phần Subtasks & AI Breakdown */}
                 {editingTask && (
                   <TaskSubtaskSection
                     task={editingTask}
-                    onTaskUpdated={(updatedTask) => {
-                      setEditingTask(updatedTask);
-                    }}
+                    onTaskUpdated={(updatedTask) => setEditingTask(updatedTask)}
                   />
                 )}
-                {/* 4. Activity Log (Nằm ngay bên dưới, liền mạch) */}
-                <div className="pt-6 border-t border-slate-800/80 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Activity</h3>
-                  </div>
 
-                  {/* Thanh lọc pill-buttons (All | Comments | History | Work log) */}
+                <div className="pt-6 border-t border-slate-800/80 space-y-4">
+                  <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Activity</h3>
                   <div className="flex items-center gap-1.5 bg-slate-900/80 p-1 rounded-xl border border-slate-800/80 w-fit">
-                    {['All', 'Comments', 'History', 'Work log'].map((tab) => (
+                    {['All', 'Comments', 'History'].map((tab) => (
                       <button
                         key={tab}
                         type="button"
                         onClick={() => setActivityFilter(tab)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${activityFilter === tab
-                          ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-                          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-                          }`}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer ${
+                          activityFilter === tab ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'
+                        }`}
                       >
                         {tab}
                       </button>
                     ))}
                   </div>
 
-                  {/* Khung hiển thị nội dung theo bộ lọc được chọn */}
-                  <div className="space-y-4 pt-2">
+                  <div className="flex gap-3 mt-4 items-center">
+                    <input
+                      type="text"
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      placeholder="Add a comment..."
+                      className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleSendComment(editingTask._id || editingTask.id)}
+                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold cursor-pointer"
+                    >
+                      Gửi
+                    </button>
+                  </div>
 
-                    {/* Ô nhập bình luận nhanh */}
-                    <div className="flex gap-3 mt-4 items-center">
-                      <div className="w-7 h-7 rounded-full bg-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-300 shrink-0">
-                        {user?.name?.[0] || 'U'}
+                  <div className="space-y-3 pt-2">
+                    {activities.map((act) => (
+                      <div key={act._id || act.id} className="flex gap-3 items-start">
+                        <div className="text-xs text-slate-300">
+                          <span className="font-bold text-slate-200">{act.userId?.name || 'Thành viên'}</span> {act.action} <span className="text-indigo-300">{act.content}</span>
+                        </div>
                       </div>
-                      <div className="flex-1 flex gap-2">
-                        <input
-                          type="text"
-                          value={newComment}
-                          onChange={(e) => setNewComment(e.target.value)}
-                          placeholder="Add a comment..."
-                          className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-                        />
-                        <button
-                          onClick={() => handleSendComment(editingTask._id || editingTask.id)}
-                          className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold cursor-pointer"
-                        >
-                          Gửi
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Danh sách Activity thật từ Database */}
-                    <div className="space-y-3 pt-2">
-                      {activities.length > 0 ? (
-                        activities.filter((act) => {
-                          if (activityFilter === 'All') return true;
-                          if (activityFilter === 'Comments') return act.action === 'đã bình luận';
-                          if (activityFilter === 'History') return act.action !== 'đã bình luận';
-                          if (activityFilter === 'Work log') return act.action === 'đã cập nhật thời gian'; // Tùy chỉnh theo logic của bạn
-                          return true;
-                        })
-                          .map((act) => (
-                            <div key={act._id || act.id} className="flex gap-3 items-start">
-                              <div className="w-7 h-7 rounded-full bg-indigo-500/20 flex items-center justify-center text-[10px] font-bold text-indigo-400 border border-indigo-500/30 shrink-0">
-                                {act.userId?.name ? act.userId.name.substring(0, 2).toUpperCase() : 'U'}
-                              </div>
-                              <div className="text-xs text-slate-300 space-y-1">
-                                <p>
-                                  <span className="font-bold text-slate-200">{act.userId?.name || 'Thành viên'}</span> {act.action} <span className="text-indigo-300">{act.content}</span>
-                                </p>
-                                <span className="text-[10px] text-slate-500 block">
-                                  {new Date(act.createdAt).toLocaleString('vi-VN')}
-                                </span>
-                              </div>
-                            </div>
-                          ))
-                      ) : (
-                        <p className="text-xs text-slate-500 italic text-center py-2">Chưa có hoạt động nào gần đây.</p>
-                      )}
-                    </div>
-
+                    ))}
                   </div>
                 </div>
               </div>
 
-              {/* CỘT BÊN PHẢI: Khung Details cố định không bị trôi */}
-              <div className="w-80 bg-slate-900/80 border border-slate-800/80 rounded-2xl p-5 flex flex-col justify-between shrink-0 shadow-lg">
+              <div className="w-80 bg-slate-900/80 border border-slate-800/80 rounded-2xl p-5 flex flex-col justify-between shrink-0">
                 <div className="space-y-4">
-                  <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider border-b border-slate-800 pb-3 flex items-center justify-between">
-                    <span>Details</span>
-                    <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
-                  </h3>
+                  <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider border-b border-slate-800 pb-3">Details</h3>
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-400 mb-1.5">Assignee</label>
                     <select
-                      value={taskForm.assigneeId || ''}
+                      value={taskForm.assigneeId}
                       onChange={(e) => setTaskForm({ ...taskForm, assigneeId: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs font-medium text-slate-200 focus:outline-none focus:border-indigo-500 cursor-pointer transition-all"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 outline-none"
                     >
                       <option value="">-- Chưa phân công --</option>
                       {members.map(m => (
-                        <option key={m._id} value={m._id}>{m.name || m.email}</option>
+                        <option key={m._id || m.user?._id} value={m.user?._id || m._id}>
+                          {m.user?.name || m.user?.email || m.name || m.email}
+                        </option>
                       ))}
                     </select>
                   </div>
-                  {/* Trạng thái */}
+
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-400 mb-1.5">Status</label>
                     <select
                       value={taskForm.status}
                       onChange={(e) => setTaskForm({ ...taskForm, status: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs font-medium text-slate-200 focus:outline-none focus:border-indigo-500 cursor-pointer transition-all"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 outline-none"
                     >
                       <option value="TODO">CẦN LÀM</option>
                       <option value="IN_PROGRESS">ĐANG LÀM</option>
@@ -566,13 +513,12 @@ export default function MainApp(
                     </select>
                   </div>
 
-                  {/* Mức ưu tiên */}
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-400 mb-1.5">Priority</label>
                     <select
                       value={taskForm.priority}
                       onChange={(e) => setTaskForm({ ...taskForm, priority: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs font-medium text-slate-200 focus:outline-none focus:border-indigo-500 cursor-pointer transition-all"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 outline-none"
                     >
                       <option value="LOW">LOW</option>
                       <option value="MEDIUM">MEDIUM</option>
@@ -581,42 +527,39 @@ export default function MainApp(
                     </select>
                   </div>
 
-                  {/* Deadline */}
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-400 mb-1.5">Due Date</label>
                     <input
                       type="date"
                       value={taskForm.dueDate}
                       onChange={(e) => setTaskForm({ ...taskForm, dueDate: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs font-medium text-slate-200 focus:outline-none focus:border-indigo-500 cursor-pointer transition-all"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 outline-none"
                     />
                   </div>
                 </div>
 
-                {/* Nút Lưu / Hủy cố định dưới cùng của cột Details */}
                 <div className="pt-4 border-t border-slate-800/80 flex gap-2.5">
                   <button
                     type="button"
                     onClick={() => setShowTaskModal(false)}
-                    className="flex-1 py-2.5 bg-slate-800/80 hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                    className="flex-1 py-2.5 bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold"
                   >
                     Hủy
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-indigo-600/20 transition-all cursor-pointer"
+                    className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold"
                   >
                     Lưu thay đổi
                   </button>
                 </div>
               </div>
-
             </form>
           </div>
         </div>
       )}
 
-      {/* Modal AI Daily */}
+      {/* Modal Daily AI */}
       {showAiModal && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex justify-center items-center p-4 z-50">
           <div className="bg-slate-800 border border-slate-700 rounded-xl w-full max-w-lg p-5 shadow-2xl space-y-4">
@@ -630,42 +573,30 @@ export default function MainApp(
 
             {!aiResult ? (
               <div className="space-y-4">
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Nhập tiến độ tự do, AI sẽ tự động phân loại công việc và cập nhật thẻ Kanban lên hệ thống.
-                </p>
+                <p className="text-xs text-slate-400">Nhập tiến độ tự do, AI sẽ tự động phân loại công việc và cập nhật thẻ Kanban.</p>
                 <textarea
                   value={reportText}
                   onChange={(e) => setReportText(e.target.value)}
-                  placeholder="Hôm nay tôi đã xong tính năng X, nhưng gặp khó khăn khi liên kết API..."
+                  placeholder="Hôm nay tôi đã làm..."
                   rows={4}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 leading-relaxed"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-xs text-slate-200 outline-none focus:border-indigo-500"
                 />
                 <button
                   onClick={handleSubmitDaily}
                   disabled={aiAnalyzing}
-                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 rounded-lg font-semibold text-xs transition-all flex justify-center items-center gap-2 cursor-pointer disabled:opacity-50"
+                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 rounded-lg font-semibold text-xs text-white disabled:opacity-50"
                 >
                   {aiAnalyzing ? 'AI đang xử lý...' : 'Phân tích & Cập nhật'}
                 </button>
               </div>
             ) : (
-              <div className="space-y-3 bg-slate-900 p-4 rounded-lg border border-slate-700/80 text-xs">
-                <h3 className="font-semibold text-emerald-400 text-xs border-b border-slate-800 pb-2">✅ Kết quả AI phân tích:</h3>
+              <div className="space-y-3 bg-slate-900 p-4 rounded-lg border border-slate-700 text-xs">
+                <h3 className="font-semibold text-emerald-400">✅ Kết quả AI phân tích:</h3>
                 <div>
                   <strong className="text-slate-300 block mb-1">Đã làm:</strong>
-                  <ul className="list-disc pl-4 text-slate-400 space-y-0.5">{aiResult.yesterdayDone?.map((item, i) => <li key={i}>{item}</li>)}</ul>
+                  <ul className="list-disc pl-4 text-slate-400">{aiResult.yesterdayDone?.map((item, i) => <li key={i}>{item}</li>)}</ul>
                 </div>
-                <div>
-                  <strong className="text-slate-300 block mb-1">Kế hoạch:</strong>
-                  <ul className="list-disc pl-4 text-slate-400 space-y-0.5">{aiResult.todayPlan?.map((item, i) => <li key={i}>{item}</li>)}</ul>
-                </div>
-                {aiResult.blockers?.length > 0 && (
-                  <div className="bg-red-500/10 p-2.5 rounded-lg border border-red-500/20 text-red-300">
-                    <strong className="block mb-1">⚠️ Sự cố (Blockers):</strong>
-                    <ul className="list-disc pl-4 space-y-0.5">{aiResult.blockers.map((item, i) => <li key={i}>{item}</li>)}</ul>
-                  </div>
-                )}
-                <button onClick={() => { setAiResult(null); setShowAiModal(false); }} className="w-full py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 font-medium mt-2 cursor-pointer">
+                <button onClick={() => { setAiResult(null); setShowAiModal(false); }} className="w-full py-2 bg-slate-800 rounded-lg text-slate-300 font-medium mt-2">
                   Đóng
                 </button>
               </div>
@@ -673,7 +604,6 @@ export default function MainApp(
           </div>
         </div>
       )}
-
     </div>
   );
 }

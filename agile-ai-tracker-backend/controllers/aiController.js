@@ -108,3 +108,53 @@ exports.breakdownTaskWithAI = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+exports.projectHealthCheck = async (req, res) => {
+  try {
+    
+    const { projectName, stats } = req.body;
+
+    const systemInstruction = `
+      Bạn là một chuyên gia Quản lý Dự án Agile/Scrum.
+      Hãy phân tích tình trạng sức khỏe của dự án "${projectName || 'FJra Project'}" dựa trên số liệu sau:
+      - Tiến độ hoàn thành: ${stats.progress} (Tổng ${stats.total} tasks)
+      - Số task bị kẹt (Blockers): ${stats.blockedCount}
+      - Số task quá hạn (Overdue): ${stats.overdueCount}
+      - Số task khẩn cấp/cao: ${stats.urgentCount}
+      - Chi tiết lý do kẹt: ${JSON.stringify(stats.blockedReasons)}
+
+      Hãy viết 1 đoạn nhận xét ngắn gọn (tối đa 3 câu), chỉ ra điểm rủi ro lớn nhất và đưa ra đúng 1 lời khuyên thực chiến để team xử lý ngay lập tức.
+    `;
+    const prompt = `
+      Dự án: "${projectName}"
+      Số liệu hiện tại:
+      - Tiến độ hoàn thành: ${stats.progress || '0%'} (Tổng ${stats.total || 0} tasks)
+      - Số task bị kẹt (Blockers): ${stats.blockedCount || 0}
+      - Số task quá hạn (Overdue): ${stats.overdueCount || 0}
+      - Số task khẩn cấp/cao: ${stats.urgentCount || 0}
+      - Chi tiết lý do kẹt: ${JSON.stringify(stats.blockedReasons || [])}
+    `;
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.5-flash',
+      contents: prompt,
+      config: {
+        systemInstruction: systemInstruction,
+      }
+    });
+
+    let rawText = (response.text || '').trim();
+    // Làm sạch nếu AI lỡ trả về markdown code blocks
+    rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+    
+    // const parsedData = JSON.parse(rawText);
+
+    res.status(201).json({
+      success: true,
+      message: 'AI đã phân tích tình trạng sức khỏe dự án thành công!',
+      analysis: rawText
+    });
+
+  } catch (error) {
+    console.error('Lỗi chi tiết tại AI Parser:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};

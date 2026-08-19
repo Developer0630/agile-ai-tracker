@@ -26,7 +26,8 @@ function AppRouter() {
       >
         <ArrowLeft className="w-3.5 h-3.5" /> Đổi dự án
       </button>
-      <MainApp projectId={selectedProjectId} />
+      <MainApp projectId={selectedProjectId}
+      onBackToDashboard={() => setSelectedProjectId(null)} />
     </div>
   );
 }
