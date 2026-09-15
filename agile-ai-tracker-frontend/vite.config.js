@@ -7,4 +7,8 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  resolve: {
+    // Thêm danh sách các đuôi file Vite tự động tìm kiếm theo thứ tự
+    extensions: ['.mjs', '.js', '.mts', '.ts', '.jsx', '.tsx', '.json']
+  }
 })

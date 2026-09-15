@@ -1,13 +1,54 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import AuthPage from './pages/AuthPage';
 import DashboardPage from './pages/DashboardPage';
 import MainApp from './pages/MainApp';
 import { ArrowLeft } from 'lucide-react';
 
+const THEME_STORAGE_KEY = 'fjra-theme';
+const DENSITY_STORAGE_KEY = 'fjra-density';
+
+const getStoredTheme = () => {
+  const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+  return savedTheme === 'light' || savedTheme === 'dark' || savedTheme === 'system' ? savedTheme : 'system';
+};
+
+const getStoredDensity = () => {
+  const savedDensity = localStorage.getItem(DENSITY_STORAGE_KEY);
+  return savedDensity === 'comfortable' || savedDensity === 'standard' || savedDensity === 'compact' ? savedDensity : 'standard';
+};
+
 function AppRouter() {
   const { isAuthenticated } = useAuth();
   const [selectedProjectId, setSelectedProjectId] = useState(null);
+  const [theme, setTheme] = useState(getStoredTheme);
+  const [density, setDensity] = useState(getStoredDensity);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    const resolvedTheme = theme === 'system' ? systemTheme : theme;
+
+    root.dataset.theme = resolvedTheme;
+    root.dataset.density = density;
+    root.style.colorScheme = resolvedTheme;
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
+    localStorage.setItem(DENSITY_STORAGE_KEY, density);
+  }, [theme, density]);
+
+  useEffect(() => {
+    if (theme !== 'system') return undefined;
+
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleSystemThemeChange = () => {
+      const resolvedTheme = mediaQuery.matches ? 'dark' : 'light';
+      document.documentElement.dataset.theme = resolvedTheme;
+      document.documentElement.style.colorScheme = resolvedTheme;
+    };
+
+    mediaQuery.addEventListener('change', handleSystemThemeChange);
+    return () => mediaQuery.removeEventListener('change', handleSystemThemeChange);
+  }, [theme]);
 
   if (!isAuthenticated) {
     return <AuthPage />;
@@ -18,16 +59,17 @@ function AppRouter() {
   }
 
   return (
-    <div className="relative h-screen w-full overflow-hidden">
-      {/* Floating Button Quay lại Dashboard */}
-      <button 
-        onClick={() => setSelectedProjectId(null)}
-        className="absolute top-2.5 right-4 z-50 bg-slate-900/90 hover:bg-slate-800 text-xs font-semibold text-slate-300 hover:text-white px-3 py-1.5 rounded-xl border border-slate-700/80 backdrop-blur-md shadow-lg transition-all flex items-center gap-1.5 cursor-pointer"
-      >
-        <ArrowLeft className="w-3.5 h-3.5" /> Đổi dự án
-      </button>
-      <MainApp projectId={selectedProjectId}
-      onBackToDashboard={() => setSelectedProjectId(null)} />
+    <div className="fjra-app-legacy-frame">
+      
+
+      <MainApp
+        projectId={selectedProjectId}
+        onBackToDashboard={() => setSelectedProjectId(null)}
+        theme={theme}
+        setTheme={setTheme}
+        density={density}
+        setDensity={setDensity}
+      />
     </div>
   );
 }

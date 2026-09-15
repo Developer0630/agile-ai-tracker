@@ -63,7 +63,7 @@ export default function TaskSubtaskSection({ task, onTaskUpdated }) {
           className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 rounded-lg text-[11px] font-semibold transition-all cursor-pointer disabled:opacity-50"
         >
           {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 text-indigo-400" />}
-          <span>✨ AI Breakdown</span>
+          <span>AI Breakdown</span>
         </button>
       </div>
 
