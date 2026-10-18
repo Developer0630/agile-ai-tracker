@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Plus, Trash2, Edit2 } from 'lucide-react';
-import { Button, PageHeader, LoadingState, EmptyState, StatusBadge, PriorityBadge } from './ui';
+import { Button, PageHeader, LoadingState, EmptyState, PriorityBadge } from './ui';
 
 const API_BASE = 'http://localhost:5000/api';
 
@@ -87,8 +87,6 @@ export default function ActiveSprintKanban({ projectId, onTaskUpdate, onOpenCrea
         }
       />
 
-      {sprint && <StatusBadge status="ACTIVE" />}
-
       {!sprint ? (
         <EmptyState title="No active sprint" description="Go to Backlog and start a sprint to use the board." />
       ) : (
@@ -109,6 +107,8 @@ export default function ActiveSprintKanban({ projectId, onTaskUpdate, onOpenCrea
                 <div className="p-2 space-y-1.5 flex-1 overflow-y-auto custom-scrollbar">
                   {colTasks.map(task => {
                     const tId = task._id || task.id;
+                    const taskKey = task.taskKey || (task.taskNumber ? `#${task.taskNumber}` : '');
+
                     return (
                       <div
                         key={tId}
@@ -116,25 +116,47 @@ export default function ActiveSprintKanban({ projectId, onTaskUpdate, onOpenCrea
                         onDragStart={(e) => handleDragStart(e, tId)}
                         onClick={(e) => {
                           if (!e.target.closest('button') && !e.target.closest('select')) {
-                            onOpenCreateModal(task);
+                            onOpenCreateModal?.(task);
                           }
                         }}
-                        className="bg-white border border-[#DFE1E6] rounded-[3px] p-2.5 cursor-grab active:cursor-grabbing hover:bg-[#FAFBFC] group"
+                        className="bg-white border border-[#DFE1E6] rounded-[3px] p-2.5 cursor-grab active:cursor-grabbing hover:bg-[#FAFBFC] group shadow-xs hover:shadow-sm transition-all"
                       >
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <p className="text-sm text-[#172B4D] line-clamp-2">{task.title}</p>
+                        {/* Tiêu đề & Nút thao tác */}
+                        <div className="flex items-start justify-between gap-2 mb-1.5">
+                          <p className="text-sm font-medium text-[#172B4D] line-clamp-2 hover:text-[#0052CC]">
+                            {task.title}
+                          </p>
                           <div className="flex opacity-0 group-hover:opacity-100 shrink-0">
-                            <button type="button" onClick={() => onOpenCreateModal(task)} className="p-0.5 text-[#626F86] hover:text-[#172B4D] cursor-pointer"><Edit2 className="w-3 h-3" /></button>
-                            <button type="button" onClick={() => handleDeleteTask(tId)} className="p-0.5 text-[#626F86] hover:text-[#DE350B] cursor-pointer"><Trash2 className="w-3 h-3" /></button>
+                            <button type="button" onClick={() => onOpenCreateModal?.(task)} className="p-0.5 text-[#626F86] hover:text-[#172B4D] cursor-pointer" title="Edit">
+                              <Edit2 className="w-3 h-3" />
+                            </button>
+                            <button type="button" onClick={() => handleDeleteTask(tId)} className="p-0.5 text-[#626F86] hover:text-[#DE350B] cursor-pointer" title="Delete">
+                              <Trash2 className="w-3 h-3" />
+                            </button>
                           </div>
                         </div>
-                        {task.description && <p className="text-xs text-[#626F86] line-clamp-2 mb-2">{task.description}</p>}
+
+                        {task.description && (
+                          <p className="text-xs text-[#626F86] line-clamp-2 mb-2">{task.description}</p>
+                        )}
+
+                        {/* Footer của Thẻ: Task Key, Priority & Status selector */}
                         <div className="flex items-center justify-between pt-2 border-t border-[#DFE1E6]">
-                          <PriorityBadge priority={task.priority} />
+                          <div className="flex items-center gap-1.5">
+                            {/* Mã Task Jira */}
+                            {taskKey && (
+                              <span className="text-[11px] font-mono font-bold text-[#0052CC] hover:underline">
+                                {taskKey}
+                              </span>
+                            )}
+                            <PriorityBadge priority={task.priority} />
+                          </div>
+
                           <select
                             value={task.status}
                             onChange={(e) => handleStatusChange(tId, e.target.value)}
-                            className="h-6 px-1 text-[11px] border border-[#DFE1E6] rounded-[3px] bg-white text-[#44546F] cursor-pointer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="h-6 px-1 text-[11px] border border-[#DFE1E6] rounded-[3px] bg-white text-[#44546F] cursor-pointer outline-none focus:border-[#4C9AFF]"
                           >
                             <option value="TODO">To Do</option>
                             <option value="IN_PROGRESS">In Progress</option>

@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { FolderKanban, Plus, LogOut, ShieldCheck } from 'lucide-react';
+import { FolderKanban, Plus, LogOut, ShieldCheck, FileText} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import CreateProjectModal from '../components/CreateProjectModal';
 import AdminSettingsPage from './AdminSettingsPage'; // Import trang quản trị
+import AutoReportModal from '../components/AutoReportModal';
+
 import {
   Button, Avatar, PageHeader, LoadingState, EmptyState,
   Table, TableHead, TableHeaderCell, TableBody, TableRow, TableCell, StatusBadge
@@ -17,7 +19,7 @@ export default function DashboardPage({ onSelectProject }) {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showAdminSettings, setShowAdminSettings] = useState(false); 
-
+  const [isReportOpen, setIsReportOpen] = useState(false);
   const fetchProjects = () => {
     const token = localStorage.getItem('token');
     axios.get(`${API_BASE}/projects`, {
@@ -60,7 +62,15 @@ export default function DashboardPage({ onSelectProject }) {
               <span className="hidden sm:inline">Quản trị hệ thống</span>
             </Button>
           )}
-
+          <Button 
+            variant="subtle" 
+            size="sm" 
+            onClick={() => setIsReportOpen(true)}
+            className="flex items-center gap-1.5 font-medium text-[#0052CC] hover:bg-[#E9F2FF]"
+          >
+            <FileText className="w-4 h-4 text-[#0052CC]" />
+            <span className="hidden sm:inline">Báo cáo tự động</span>
+          </Button>
           <div className="hidden sm:flex items-center gap-2 border-l border-[#DFE1E6] pl-3">
             <Avatar name={user?.name || user?.email} size="sm" />
             <div className="flex flex-col">
@@ -127,6 +137,10 @@ export default function DashboardPage({ onSelectProject }) {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onCreated={fetchProjects}
+      />
+      <AutoReportModal 
+        isOpen={isReportOpen} 
+        onClose={() => setIsReportOpen(false)} 
       />
     </div>
   );

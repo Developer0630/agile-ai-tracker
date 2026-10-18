@@ -166,16 +166,36 @@ export default function BacklogView({ projectId, onTaskUpdate, onOpenCreateModal
 
   const TaskRow = ({ task }) => {
     const taskId = task._id || task.id;
+    const taskKey = task.taskKey || (task.taskNumber ? `#${task.taskNumber}` : '');
+
     return (
       <div
         draggable
         onDragStart={(e) => handleDragStart(e, taskId)}
         className="flex items-center justify-between gap-2 px-3 py-2 bg-white border border-[#DFE1E6] rounded-[3px] hover:bg-[#F4F5F7] cursor-grab active:cursor-grabbing group"
       >
-        <div className="flex items-center gap-2 min-w-0 flex-1">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
           <GripVertical className="w-3.5 h-3.5 text-[#C1C7D0] shrink-0" />
-          <span className="text-sm text-[#172B4D] truncate">{task.title}</span>
+          
+          {/* Mã định danh Task chuẩn Jira */}
+          {taskKey && (
+            <span 
+              onClick={(e) => { e.stopPropagation(); onOpenCreateModal?.(task); }}
+              className="text-xs font-mono font-semibold text-[#0052CC] hover:underline cursor-pointer shrink-0"
+              title="Xem chi tiết"
+            >
+              {taskKey}
+            </span>
+          )}
+
+          <span 
+            onClick={() => onOpenCreateModal?.(task)}
+            className="text-sm text-[#172B4D] truncate cursor-pointer hover:text-[#0052CC]"
+          >
+            {task.title}
+          </span>
         </div>
+
         <div className="flex items-center gap-2 shrink-0">
           <PriorityBadge priority={task.priority} />
           <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">

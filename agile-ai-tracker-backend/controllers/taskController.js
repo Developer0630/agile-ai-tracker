@@ -1,4 +1,5 @@
 const Task = require('../models/Task');
+const Project = require('../models/Project');
 const Activity = require('../models/Activity');
 const { logActivity } = require('./activityController');
 const mongoose = require('mongoose');
@@ -16,26 +17,77 @@ exports.getAllTasks = async (req, res) => {
 // 2. Tạo Task mới
 exports.createTask = async (req, res) => {
   try {
-    const taskData = { ...req.body };
-    if (!taskData.assigneeId || taskData.assigneeId === '') {
-      taskData.assigneeId = null;
+    const { projectId, title, description, priority, assigneeId, sprintId, dueDate } = req.body;
+
+    if (!projectId || !title) {
+      return res.status(400).json({ success: false, message: 'Thiếu projectId hoặc tiêu đề task!' });
     }
 
-    const task = await Task.create(taskData);
-    
-    // Ghi log khi tạo task mới
-    const taskId = task._id || task.id;
-    const userId = req.user?.id;
-    if (taskId && userId) {
-      await logActivity(taskId, userId, "đã tạo task mới", task.title);
+    // Tăng taskCounter nguyên tử và lấy project key
+    const project = await Project.findByIdAndUpdate(
+      projectId,
+      { $inc: { taskCounter: 1 } },
+      { new: true }
+    );
+
+    if (!project) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy dự án!' });
     }
 
-    res.status(201).json({ success: true, data: task });
+    const taskNumber = project.taskCounter;
+    const taskKey = `${project.key}-${taskNumber}`; 
+
+    const newTask = await Task.create({
+      projectId,
+      taskKey,
+      taskNumber,
+      title,
+      description,
+      priority: priority || 'MEDIUM',
+      assigneeId: assigneeId || null,
+      sprintId: sprintId || null,
+      dueDate: dueDate || null
+    });
+
+    const populatedTask = await Task.findById(newTask._id)
+      .populate('assigneeId', 'name email avatar');
+
+    res.status(201).json({
+      success: true,
+      message: `Đã tạo task [${taskKey}]`,
+      data: populatedTask
+    });
   } catch (error) {
-    res.status(400).json({ success: false, message: error.message });
+    console.error('Lỗi tạo task:', error);
+    res.status(500).json({ success: false, message: error.message });
   }
 };
+exports.migrateOldTasksKeys = async (req, res) => {
+  try {
+    const projects = await Project.find();
+    let totalUpdated = 0;
 
+    for (const project of projects) {
+      const tasks = await Task.find({ projectId: project._id, taskKey: { $exists: false } }).sort({ createdAt: 1 });
+      
+      let counter = project.taskCounter || 0;
+      for (const t of tasks) {
+        counter += 1;
+        t.taskNumber = counter;
+        t.taskKey = `${project.key}-${counter}`;
+        await t.save();
+        totalUpdated += 1;
+      }
+
+      project.taskCounter = counter;
+      await project.save();
+    }
+
+    res.status(200).json({ success: true, message: `Đã cập nhật mã cho ${totalUpdated} tasks cũ!` });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
 // 3. Lấy Task theo Dự án
 exports.getTasksByProject = async (req, res) => {
   try {

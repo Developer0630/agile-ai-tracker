@@ -8,6 +8,15 @@ const TaskSchema = new mongoose.Schema({
   title: { type: String, required: true },
   description: String,
   projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', required: true },
+  taskKey: { 
+    type: String, 
+    required: true, 
+    index: true 
+  }, 
+  taskNumber: { 
+    type: Number, 
+    required: true 
+  },
   sprintId: { type: mongoose.Schema.Types.ObjectId, ref: 'Sprint', default: null },
   assigneeId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   status: { 

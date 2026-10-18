@@ -854,3 +854,32 @@ svg {
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: var(--color-text-muted);
 }
+/* Chuẩn hóa xuất bản in PDF / Print Layout */
+@media print {
+  /* Ẩn tất cả các thành phần nền của App khi in */
+  body * {
+    visibility: hidden;
+  }
+
+  /* Chỉ hiển thị duy nhất nội dung của Print Container */
+  .print\:fixed,
+  .print\:fixed * {
+    visibility: visible;
+  }
+
+  .print\:fixed {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background: #ffffff !important;
+  }
+
+  /* Loại bỏ bóng và viền cửa sổ khi ra giấy in/PDF */
+  @page {
+    size: A4 portrait;
+    margin: 1.5cm;
+  }
+}

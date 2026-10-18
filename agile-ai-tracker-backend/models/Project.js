@@ -22,7 +22,8 @@ const projectSchema = new mongoose.Schema({
       },
       joinedAt: { type: Date, default: Date.now }
     }
-  ]
+  ],
+  taskCounter: { type: Number, default: 0 }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Project', projectSchema);
