@@ -338,30 +338,20 @@ exports.getSystemStats = async (req, res) => {
       dbStatus = 'DISCONNECTED';
     }
 
-    // 2. Thống kê Users, Projects và Tasks
-    const [totalUsers, activeUsers, suspendedUsers, totalProjects, taskStats] = await Promise.all([
+    // 2. Mốc thời gian 3 phút gần nhất
+    const threeMinutesAgo = new Date(Date.now() - 3 * 60 * 1000);
+
+    // 3. Đếm số lượng
+    const [totalUsers, onlineUsers, activeUsers, suspendedUsers, totalProjects, taskStats] = await Promise.all([
       User.countDocuments(),
+      User.countDocuments({ lastActiveAt: { $gte: threeMinutesAgo } }), // 👈 Đang Online thực tế
       User.countDocuments({ status: 'ACTIVE' }),
       User.countDocuments({ status: 'SUSPENDED' }),
       Project.countDocuments(),
-      Task.aggregate([
-        {
-          $group: {
-            _id: '$status',
-            count: { $sum: 1 }
-          }
-        }
-      ])
+      Task.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }])
     ]);
 
-    // Chuẩn hóa phân bổ task theo status
-    const taskBreakdown = {
-      TODO: 0,
-      IN_PROGRESS: 0,
-      DONE: 0,
-      total: 0
-    };
-
+    const taskBreakdown = { TODO: 0, IN_PROGRESS: 0, DONE: 0, total: 0 };
     taskStats.forEach(item => {
       if (item._id && taskBreakdown.hasOwnProperty(item._id)) {
         taskBreakdown[item._id] = item.count;
@@ -369,33 +359,34 @@ exports.getSystemStats = async (req, res) => {
       taskBreakdown.total += item.count;
     });
 
-    // 3. Thông tin tài nguyên Node.js server
-    const memoryUsage = process.memoryUsage();
-    const serverUptimeSeconds = Math.floor(process.uptime());
-
     res.status(200).json({
       success: true,
       data: {
-        database: {
-          status: dbStatus,
-          latencyMs: dbLatency
-        },
+        database: { status: dbStatus, latencyMs: dbLatency },
         users: {
           total: totalUsers,
+          online: onlineUsers, // 👈 Trả về số lượng online
           active: activeUsers,
           suspended: suspendedUsers
         },
-        projects: {
-          total: totalProjects
-        },
+        projects: { total: totalProjects },
         tasks: taskBreakdown,
         server: {
-          uptime: serverUptimeSeconds,
-          heapUsedMB: Math.round(memoryUsage.heapUsed / 1024 / 1024)
+          uptime: Math.floor(process.uptime()),
+          heapUsedMB: Math.round(process.memoryUsage().heapUsed / 1024 / 1024)
         }
       }
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
+  }
+};
+exports.pingHeartbeat = async (req, res) => {
+  try {
+    const userId = req.user.id || req.user._id;
+    await User.findByIdAndUpdate(userId, { lastActiveAt: new Date() });
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
   }
 };

@@ -25,6 +25,12 @@ export default function AdminSettingsPage({ onBack }) {
   const [auditLogs, setAuditLogs] = useState([]);
 
   const [stats, setStats] = useState(null);
+
+  const isOnline = (lastActive) => {
+  if (!lastActive) return false;
+  return (new Date() - new Date(lastActive)) < 3 * 60 * 1000;
+};
+
   const loadAdminData = useCallback(async () => {
   try {
     
@@ -181,10 +187,20 @@ export default function AdminSettingsPage({ onBack }) {
                   <TableHeaderCell className="text-right">Công cụ Quản trị</TableHeaderCell>
                 </TableHead>
                 <TableBody>
+                
                   {users.map((u) => (
+                    
                     <TableRow key={u._id}>
                       <TableCell className="font-medium flex items-center gap-2">
-                        <Avatar name={u.name} size="sm" />
+                        <div className="relative">
+                          <Avatar name={u.name} size="sm" />
+                          {isOnline(u.lastActiveAt) && (
+                            <span 
+                              title="Đang Online" 
+                              className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-[#36B37E] border-2 border-white rounded-full" 
+                            />
+                          )}
+                        </div>
                         <div>
                           <div className="text-xs text-[#172B4D] font-semibold">{u.name}</div>
                           <div className="text-[11px] text-[#626F86] font-mono">{u.email}</div>
@@ -365,6 +381,15 @@ export default function AdminSettingsPage({ onBack }) {
                         <div className="text-sm font-bold text-[#172B4D]">{stats.users?.active} / {stats.users?.total} Active</div>
                         <p className="text-[11px] text-[#DE350B] mt-1">Đang bị khóa: {stats.users?.suspended} tài khoản</p>
                       </div>
+                    </div>
+                    <div className="mt-3">
+                      <div className="text-xl font-bold text-[#172B4D] flex items-center gap-2">
+                        {stats?.users?.online || 0}
+                        <span className="text-xs font-normal text-emerald-600 font-medium">Đang Online</span>
+                      </div>
+                      <p className="text-[11px] text-[#626F86] mt-1">
+                        Tổng cộng: {stats?.users?.total || 0} tài khoản
+                      </p>
                     </div>
                   </div>
 

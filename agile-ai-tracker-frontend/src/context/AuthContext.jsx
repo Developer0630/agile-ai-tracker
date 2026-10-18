@@ -31,6 +31,20 @@ export function AuthProvider({ children }) {
         return Promise.reject(error);
       }
     );
+    axios.post('http://localhost:5000/api/system-settings/heartbeat', {}, {
+    headers: { Authorization: `Bearer ${token}` }
+  }).catch(() => {});
+
+  // Cứ mỗi 60 giây gửi ping 1 lần
+  const interval = setInterval(() => {
+    const currentToken = localStorage.getItem('token');
+    if (currentToken) {
+      axios.post('http://localhost:5000/api/system-settings/heartbeat', {}, {
+        headers: { Authorization: `Bearer ${currentToken}` }
+      }).catch(() => {});
+    }
+  }, 60 * 1000);
+  return () => clearInterval(interval);
   }, [token, user]);
 
   const login = (userData, userToken) => {

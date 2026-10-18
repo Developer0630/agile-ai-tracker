@@ -16,6 +16,7 @@ const {
     getAuditLogs
 } = require('../controllers/systemSettingController');
 const { protect } = require('../middleware/authMiddleware');
+const { pingHeartbeat } = require('../controllers/systemSettingController');
 const { requireSystemAdmin } = require('../middleware/adminMiddleware');
 
 // Public settings cho user đăng nhập
@@ -42,4 +43,5 @@ router.put('/users/:userId/reset-password', resetUserPassword);
 router.put('/projects/:projectId/transfer-owner', transferProjectOwner);
 
 router.get('/audit-logs', getAuditLogs);
+router.post('/heartbeat', protect, pingHeartbeat);
 module.exports = router;
