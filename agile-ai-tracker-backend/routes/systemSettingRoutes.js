@@ -9,7 +9,10 @@ const {
   updateUserRole,
   deleteUser,
   getAdminProjects,
-  deleteProjectByAdmin
+  deleteProjectByAdmin,
+  toggleUserStatus,
+    resetUserPassword,
+    transferProjectOwner
 } = require('../controllers/systemSettingController');
 const { protect } = require('../middleware/authMiddleware');
 const { requireSystemAdmin } = require('../middleware/adminMiddleware');
@@ -32,4 +35,8 @@ router.delete('/users/:userId', deleteUser);
 router.get('/projects/all', getAdminProjects);
 router.delete('/projects/:projectId', deleteProjectByAdmin);
 
+router.put('/users/:userId/status', toggleUserStatus);
+router.put('/users/:userId/reset-password', resetUserPassword);
+
+router.put('/projects/:projectId/transfer-owner', transferProjectOwner);
 module.exports = router;

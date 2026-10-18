@@ -47,7 +47,12 @@ exports.login = async (req, res) => {
     if (!user) {
       return res.status(400).json({ success: false, message: 'Email hoặc mật khẩu không chính xác' });
     }
-
+    if (user.status === 'SUSPENDED') {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Tài khoản của bạn đã bị Quản trị viên tạm khóa. Vui lòng liên hệ Admin!' 
+      });
+    }
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ success: false, message: 'Email hoặc mật khẩu không chính xác' });

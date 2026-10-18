@@ -20,6 +20,17 @@ export function AuthProvider({ children }) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
     }
+    axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error.response?.status === 403 && error.response?.data?.message?.includes('tạm khóa')) {
+          alert(error.response.data.message);
+          localStorage.removeItem('token');
+          window.location.reload();
+        }
+        return Promise.reject(error);
+      }
+    );
   }, [token, user]);
 
   const login = (userData, userToken) => {
