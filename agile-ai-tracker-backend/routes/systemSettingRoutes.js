@@ -12,7 +12,8 @@ const {
   deleteProjectByAdmin,
   toggleUserStatus,
     resetUserPassword,
-    transferProjectOwner
+    transferProjectOwner,
+    getAuditLogs
 } = require('../controllers/systemSettingController');
 const { protect } = require('../middleware/authMiddleware');
 const { requireSystemAdmin } = require('../middleware/adminMiddleware');
@@ -39,4 +40,6 @@ router.put('/users/:userId/status', toggleUserStatus);
 router.put('/users/:userId/reset-password', resetUserPassword);
 
 router.put('/projects/:projectId/transfer-owner', transferProjectOwner);
+
+router.get('/audit-logs', getAuditLogs);
 module.exports = router;

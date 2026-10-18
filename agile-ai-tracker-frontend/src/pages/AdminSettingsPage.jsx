@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { 
   ShieldCheck, Users, FolderKanban, ArrowLeft, RefreshCw, KeyRound, Lock, Unlock, UserCheck, 
+  Activity, Database, Server, CheckCircle2, AlertCircle
 } from 'lucide-react';
 import { 
   Button, Avatar, Table, TableHead, TableHeaderCell, 
@@ -21,13 +22,21 @@ export default function AdminSettingsPage({ onBack }) {
   const [projects, setProjects] = useState([]);
   const [, setPriorities] = useState([]);
 
+  const [auditLogs, setAuditLogs] = useState([]);
+
+  const [stats, setStats] = useState(null);
   const loadAdminData = useCallback(async () => {
   try {
-    const [resUsers, resProjects, resSettings] = await Promise.all([
+    
+    const [resUsers, resProjects, resLogs, resStats] = await Promise.all([
       axios.get(`${API_BASE}/system-settings/users/all`, getAuthConfig()),
       axios.get(`${API_BASE}/system-settings/projects/all`, getAuthConfig()),
-      axios.get(`${API_BASE}/system-settings`, getAuthConfig())
+      axios.get(`${API_BASE}/system-settings/audit-logs`, getAuthConfig()).catch(() => ({ data: { data: [] } })),
+      axios.get(`${API_BASE}/system-settings/stats`, getAuthConfig()).catch(() => ({ data: { data: null } }))
     ]);
+
+    setStats(resStats.data.data);
+    setAuditLogs(resLogs.data.data || []);
 
     setUsers(resUsers.data.data || []);
     setProjects(resProjects.data.data || []);
@@ -131,6 +140,24 @@ export default function AdminSettingsPage({ onBack }) {
           >
             <FolderKanban className="w-4 h-4" />
             <span>Quản lý Dự án ({projects.length})</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('logs')}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-[3px] text-xs font-semibold cursor-pointer transition ${
+              activeTab === 'logs' ? 'bg-[#E9F2FF] text-[#0052CC]' : 'text-[#44546F] hover:bg-[#F1F2F4]'
+            }`}
+          >
+            <ShieldCheck className="w-4 h-4" />
+            <span>Nhật ký Kiểm toán ({auditLogs.length})</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('health')}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-[3px] text-xs font-semibold cursor-pointer transition ${
+              activeTab === 'health' ? 'bg-[#E9F2FF] text-[#0052CC]' : 'text-[#44546F] hover:bg-[#F1F2F4]'
+            }`}
+          >
+            <Activity className="w-4 h-4" />
+            <span>Sức khỏe Hệ thống (Health)</span>
           </button>
         </aside>
 
@@ -237,7 +264,132 @@ export default function AdminSettingsPage({ onBack }) {
                 </TableBody>
               </Table>
             </div>
-          ) : null}
+          ) :activeTab === 'logs' ? (
+                <div className="space-y-4">
+                  <div>
+                    <h2 className="text-base font-bold text-[#172B4D]">Nhật ký Kiểm toán Hệ thống (Audit Logs)</h2>
+                    <p className="text-xs text-[#626F86]">Lưu vết toàn bộ hoạt động can thiệp của Quản trị viên để đảm bảo an toàn và minh bạch.</p>
+                  </div>
+
+                  <Table>
+                    <TableHead>
+                      <TableHeaderCell>Thời gian</TableHeaderCell>
+                      <TableHeaderCell>Người thực hiện</TableHeaderCell>
+                      <TableHeaderCell>Hành động</TableHeaderCell>
+                      <TableHeaderCell>Nội dung chi tiết</TableHeaderCell>
+                      <TableHeaderCell className="text-right">IP Address</TableHeaderCell>
+                    </TableHead>
+                    <TableBody>
+                      {auditLogs.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center py-8 text-[#626F86] text-xs">
+                            Chưa có bản ghi hoạt động nào.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        auditLogs.map((log) => (
+                          <TableRow key={log._id}>
+                            <TableCell className="text-[#626F86] text-xs font-mono whitespace-nowrap">
+                              {new Date(log.createdAt).toLocaleString('vi-VN')}
+                            </TableCell>
+                            <TableCell className="font-medium flex items-center gap-2">
+                              <Avatar name={log.actor?.name || 'Admin'} size="sm" />
+                              <span className="text-xs text-[#172B4D]">{log.actor?.name || 'Hệ thống'}</span>
+                            </TableCell>
+                            <TableCell>
+                              <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold uppercase ${
+                                log.action.includes('DELETED') || log.action.includes('SUSPENDED')
+                                  ? 'bg-[#FFEBE6] text-[#DE350B]'
+                                  : log.action.includes('ROLE') || log.action.includes('TRANSFERRED')
+                                  ? 'bg-[#FFF0B3] text-[#172B4D]'
+                                  : 'bg-[#E3FCEF] text-[#006644]'
+                              }`}>
+                                {log.action}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-xs text-[#172B4D]">
+                              {log.details}
+                            </TableCell>
+                            <TableCell className="text-right text-[#626F86] text-xs font-mono">
+                              {log.ipAddress}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : activeTab === 'health' && stats ? (
+                <div className="space-y-6">
+                  <div>
+                    <h2 className="text-base font-bold text-[#172B4D]">Giám sát Trạng thái & Tài nguyên Hệ thống</h2>
+                    <p className="text-xs text-[#626F86]">Theo dõi tình trạng kết nối Database, tài nguyên RAM và phân bổ khối lượng công việc toàn sàn.</p>
+                  </div>
+
+                  {/* Metric Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {/* DB Health */}
+                    <div className="bg-[#FAFBFC] border border-[#DFE1E6] rounded p-4 flex flex-col justify-between">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-[#44546F]">MongoDB Database</span>
+                        <Database className="w-4 h-4 text-[#0052CC]" />
+                      </div>
+                      <div className="mt-3">
+                        <div className="flex items-center gap-2">
+                          <span className={`w-2.5 h-2.5 rounded-full ${stats.database?.status === 'CONNECTED' ? 'bg-[#36B37E]' : 'bg-[#DE350B]'}`} />
+                          <span className="text-sm font-bold text-[#172B4D]">{stats.database?.status}</span>
+                        </div>
+                        <p className="text-[11px] text-[#626F86] mt-1">Độ trễ (Latency): <strong className="text-[#172B4D]">{stats.database?.latencyMs}ms</strong></p>
+                      </div>
+                    </div>
+
+                    {/* Server Uptime & RAM */}
+                    <div className="bg-[#FAFBFC] border border-[#DFE1E6] rounded p-4 flex flex-col justify-between">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-[#44546F]">Node.js Backend</span>
+                        <Server className="w-4 h-4 text-[#6554C0]" />
+                      </div>
+                      <div className="mt-3">
+                        <div className="text-sm font-bold text-[#172B4D]">RAM: {stats.server?.heapUsedMB} MB</div>
+                        <p className="text-[11px] text-[#626F86] mt-1">Thời gian chạy liên tục: {Math.floor(stats.server?.uptime / 60)} phút</p>
+                      </div>
+                    </div>
+
+                    {/* User Status */}
+                    <div className="bg-[#FAFBFC] border border-[#DFE1E6] rounded p-4 flex flex-col justify-between">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-[#44546F]">Tài khoản Hoạt động</span>
+                        <CheckCircle2 className="w-4 h-4 text-[#36B37E]" />
+                      </div>
+                      <div className="mt-3">
+                        <div className="text-sm font-bold text-[#172B4D]">{stats.users?.active} / {stats.users?.total} Active</div>
+                        <p className="text-[11px] text-[#DE350B] mt-1">Đang bị khóa: {stats.users?.suspended} tài khoản</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Task Distribution Breakdown */}
+                  <div className="bg-[#FAFBFC] border border-[#DFE1E6] rounded p-5">
+                    <h3 className="text-xs font-bold text-[#172B4D] uppercase tracking-wide mb-3">
+                      Phân bổ Toàn bộ Task ({stats.tasks?.total || 0} công việc)
+                    </h3>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="p-3 bg-white border border-[#DFE1E6] rounded text-center">
+                        <div className="text-[11px] text-[#626F86] font-semibold">CẦN LÀM (TODO)</div>
+                        <div className="text-xl font-bold text-[#172B4D] mt-1">{stats.tasks?.TODO || 0}</div>
+                      </div>
+                      <div className="p-3 bg-white border border-[#DFE1E6] rounded text-center">
+                        <div className="text-[11px] text-[#0052CC] font-semibold">ĐANG LÀM (IN PROGRESS)</div>
+                        <div className="text-xl font-bold text-[#0052CC] mt-1">{stats.tasks?.IN_PROGRESS || 0}</div>
+                      </div>
+                      <div className="p-3 bg-white border border-[#DFE1E6] rounded text-center">
+                        <div className="text-[11px] text-[#36B37E] font-semibold">HOÀN THÀNH (DONE)</div>
+                        <div className="text-xl font-bold text-[#36B37E] mt-1">{stats.tasks?.DONE || 0}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
         </main>
       </div>
     </div>
