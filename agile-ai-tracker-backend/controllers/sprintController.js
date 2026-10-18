@@ -145,6 +145,7 @@ exports.completeSprint = async (req, res) => {
     }
 
     sprint.status = 'completed';
+    sprint.completedAt = new Date();
     await sprint.save();
 
     const unfinishedTasks = await Task.updateMany(

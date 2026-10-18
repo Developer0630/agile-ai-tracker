@@ -6,15 +6,21 @@ const mongoose = require('mongoose');
 exports.getUserProjects = async (req, res) => {
   try {
     const rawUserId = req.user.id || req.user._id;
+    const userRole = req.user.role;
     const userObjectId = new mongoose.Types.ObjectId(rawUserId);
 
-    const projects = await Project.find({
-      $or: [
-        { owner: userObjectId },
-        { 'members.user': userObjectId },
-        { members: userObjectId } // Hỗ trợ dữ liệu mảng ObjectId cũ
-      ]
-    })
+let query = {};
+    
+    if (userRole !== 'ADMIN') {
+      query = {
+        $or: [
+          { owner: userObjectId },
+          { 'members.user': userObjectId },
+          { members: userObjectId }
+        ]
+      };
+    }
+    const projects = await Project.find(query)
       .populate('owner', 'name email avatar')
       .populate('members.user', 'name email avatar')
       .sort({ updatedAt: -1 });

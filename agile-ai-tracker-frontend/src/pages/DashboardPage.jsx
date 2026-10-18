@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { FolderKanban, Plus, LogOut } from 'lucide-react';
+import { FolderKanban, Plus, LogOut, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import CreateProjectModal from '../components/CreateProjectModal';
+import AdminSettingsPage from './AdminSettingsPage'; // Import trang quản trị
 import {
   Button, Avatar, PageHeader, LoadingState, EmptyState,
   Table, TableHead, TableHeaderCell, TableBody, TableRow, TableCell, StatusBadge
@@ -15,6 +16,7 @@ export default function DashboardPage({ onSelectProject }) {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showAdminSettings, setShowAdminSettings] = useState(false); 
 
   const fetchProjects = () => {
     const token = localStorage.getItem('token');
@@ -30,6 +32,11 @@ export default function DashboardPage({ onSelectProject }) {
     fetchProjects();
   }, []);
 
+  // Nếu Admin bấm vào Quản trị, render trang AdminSettingsPage
+  if (showAdminSettings) {
+    return <AdminSettingsPage onBack={() => setShowAdminSettings(false)} />;
+  }
+
   return (
     <div className="min-h-screen bg-[#FAFBFC] flex flex-col">
       <header className="h-12 px-4 sm:px-6 flex items-center justify-between bg-white border-b border-[#DFE1E6] shrink-0">
@@ -39,11 +46,29 @@ export default function DashboardPage({ onSelectProject }) {
           </div>
           <span className="text-sm font-semibold text-[#172B4D]">FJra</span>
         </div>
+        
         <div className="flex items-center gap-3">
-          <div className="hidden sm:flex items-center gap-2">
+          {/* Nút truy cập Quản trị chỉ hiển thị khi user là ADMIN */}
+          {user?.role === 'ADMIN' && (
+            <Button 
+              variant="subtle" 
+              size="sm" 
+              onClick={() => setShowAdminSettings(true)}
+              className="text-[#FF8B00] hover:bg-[#FFF0B3]/40 flex items-center gap-1.5 font-medium"
+            >
+              <ShieldCheck className="w-4 h-4 text-[#FF8B00]" />
+              <span className="hidden sm:inline">Quản trị hệ thống</span>
+            </Button>
+          )}
+
+          <div className="hidden sm:flex items-center gap-2 border-l border-[#DFE1E6] pl-3">
             <Avatar name={user?.name || user?.email} size="sm" />
-            <span className="text-xs text-[#172B4D] font-medium">{user?.name || 'User'}</span>
+            <div className="flex flex-col">
+              <span className="text-xs text-[#172B4D] font-medium leading-none">{user?.name || 'User'}</span>
+              <span className="text-[10px] text-[#626F86] font-mono leading-none mt-1">{user?.role || 'MEMBER'}</span>
+            </div>
           </div>
+          
           <Button variant="subtle" size="sm" onClick={logout} aria-label="Sign out">
             <LogOut className="w-3.5 h-3.5" />
           </Button>

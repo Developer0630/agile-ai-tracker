@@ -26,6 +26,7 @@ const sprintSchema = new mongoose.Schema(
       enum: ['planned', 'active', 'completed'],
       default: 'planned',
     },
+    completedAt: { type: Date }
   },
   { timestamps: true }
 );

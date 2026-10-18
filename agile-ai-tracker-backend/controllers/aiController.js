@@ -3,7 +3,21 @@ const Task = require('../models/Task');
 const Sprint = require('../models/Sprint');
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
+async function generateWithRetry(callFn, retries = 2, delayMs = 1500) {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      return await callFn();
+    } catch (err) {
+      const isOverloaded = err?.status === 503 || err?.message?.includes('high demand') || err?.status === 429;
+      if (isOverloaded && i < retries) {
+        console.warn(`Gemini bị quá tải (503), đang thử lại lần ${i + 1} sau${delayMs}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        continue;
+      }
+      throw err;
+    }
+  }
+}
 exports.parseNaturalLanguageTask = async (req, res) => {
   try {
     const { prompt, projectId } = req.body;
@@ -26,14 +40,24 @@ exports.parseNaturalLanguageTask = async (req, res) => {
       Hiện tại dự án có các Sprint: ${JSON.stringify(sprints)}. Nếu người dùng giao làm ngay hoặc nhắc đến sprint, chọn "ACTIVE_SPRINT", ngược lại "BACKLOG".
       Chỉ trả về JSON thuần túy, không kèm markdown code block (như \`\`\`json).
     `;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
-      contents: prompt,
-      config: {
-        systemInstruction: systemInstruction,
-      }
+    // Gọi Gemini có bọc cơ chế tự thử lại (Retry)
+    const response = await generateWithRetry(async () => {
+      return await ai.models.generateContent({
+        model: 'gemini-3.5-flash',
+        contents: `Chuyển câu sau thành task: "${prompt}"`,
+        config: {
+          systemInstruction: systemInstruction,
+          responseMimeType: 'application/json'
+        }
+      });
     });
+    // const response = await ai.models.generateContent({
+    //   model: 'gemini-3.5-flash',
+    //   contents: prompt,
+    //   config: {
+    //     systemInstruction: systemInstruction,
+    //   }
+    // });
 
     let rawText = (response.text || '').trim();
     // Làm sạch nếu AI lỡ trả về markdown code blocks

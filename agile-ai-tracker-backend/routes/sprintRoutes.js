@@ -10,10 +10,11 @@ const {
   updateSprint,
   deleteSprint
 } = require('../controllers/sprintController');
-
+const { protect } = require('../middleware/authMiddleware');
+const { requireProjectRole, canAccessProject } = require('../middleware/authProjectRole');
 // Quản lý danh sách & tạo Sprint
-router.post('/', createSprint);
-router.get('/project/:projectId', getSprintsByProject);
+router.post('/', protect, requireProjectRole(['ADMIN', 'PM']), createSprint);
+router.get('/project/:projectId', protect, canAccessProject, getSprintsByProject);
 
 // 2. KHAI BÁO ROUTE ACTIVE SPRINT Ở ĐÂY (Phải đặt TRƯỚC router.get('/:id'))
 router.get('/project/:projectId/active', getActiveSprint);
@@ -22,9 +23,9 @@ router.get('/project/:projectId/active', getActiveSprint);
 router.get('/:id', getSprintById);
 
 // Cập nhật trạng thái vòng đời Sprint
-router.put('/:id/start', startSprint);
-router.put('/:id/complete', completeSprint);
 
+router.put('/:id/start', protect, startSprint);
+router.put('/:id/complete', protect, completeSprint);
 // Cập nhật & Xóa
 router.put('/:id', updateSprint);
 router.delete('/:id', deleteSprint);

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import axios from 'axios';
 import {
-  X, FolderKanban, LogOut, User, Globe, Columns, Calendar as CalendarIcon,
+  X, FolderKanban, LogOut, Globe, Columns, Calendar as CalendarIcon,
   AlignLeft, FileText, ClipboardList, Settings, Users, BarChart2, ListTodo,
   Menu, ChevronLeft, SunMedium, MoonStar, MonitorSmartphone
 } from 'lucide-react';
@@ -18,7 +18,7 @@ import ReportsView from '../components/ReportsView';
 import SettingsView from '../components/SettingsView';
 import AIChatBar from '../components/AIChatBar';
 import TaskSubtaskSection from '../components/TaskSubtaskSection';
-import { Button, Select, Textarea, Input, LoadingState, Avatar, SegmentGroup, SidebarNavButton, WorkspaceTabButton } from '../components/ui';
+import { Button, Select, Textarea, Input, LoadingState, Avatar, SegmentGroup, SidebarNavButton,  } from '../components/ui';
 
 const API_BASE = 'http://localhost:5000/api';
 
