@@ -3,7 +3,7 @@ import axios from 'axios';
 import { Plus, Trash2, Edit2 } from 'lucide-react';
 import { Button, PageHeader, LoadingState, EmptyState, PriorityBadge } from './ui';
 
-const API_BASE = 'http://localhost:5000/api';
+import { API_BASE } from '../config/api';
 
 export default function ActiveSprintKanban({ projectId, onTaskUpdate, onOpenCreateModal }) {
   const [sprint, setSprint] = useState(null);

@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { FolderKanban } from 'lucide-react';
+import { FolderKanban, ArrowLeft } from 'lucide-react';
 import { Input, Select, Button } from '../components/ui';
 
-export default function AuthForm({ mode, loading, onSubmit, onSwitchMode }) {
+export default function AuthForm({ mode, loading, onSubmit, onSwitchMode, onBackToLanding }) {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -20,10 +20,22 @@ export default function AuthForm({ mode, loading, onSubmit, onSwitchMode }) {
   };
 
   return (
-    <div className="flex justify-center items-center min-h-screen w-full bg-[#FAFBFC] p-4">
-      <div className="bg-white border border-[#DFE1E6] rounded-[3px] w-full max-w-sm p-6 space-y-5">
+    <div className="mineral-auth flex justify-center items-center min-h-screen w-full bg-[#FAFBFC] p-4">
+      <div className="mineral-auth-card bg-white border border-[#DFE1E6] rounded-[3px] w-full max-w-sm p-6 space-y-5 shadow-xs">
+        {/* Nút quay lại Landing Page */}
+        {onBackToLanding && (
+          <button
+            type="button"
+            onClick={onBackToLanding}
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-[#626F86] hover:text-[#0052CC] cursor-pointer transition-colors"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Trang chủ giới thiệu</span>
+          </button>
+        )}
+
         <div className="flex flex-col items-center text-center space-y-2">
-          <div className="w-10 h-10 rounded-[3px] bg-[#0052CC] flex items-center justify-center">
+          <div className="w-10 h-10 rounded-[3px] bg-[#0052CC] flex items-center justify-center shadow-xs">
             <FolderKanban className="w-5 h-5 text-white" />
           </div>
           <h1 className="text-lg font-semibold text-[#172B4D]">

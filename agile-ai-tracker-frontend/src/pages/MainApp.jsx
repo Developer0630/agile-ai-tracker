@@ -20,7 +20,7 @@ import AIChatBar from '../components/AIChatBar';
 import TaskSubtaskSection from '../components/TaskSubtaskSection';
 import { Button, Select, Textarea, Input, LoadingState, Avatar, SegmentGroup, SidebarNavButton,  } from '../components/ui';
 
-const API_BASE = 'http://localhost:5000/api';
+import { API_BASE } from '../config/api';
 
 const getAuthConfig = () => ({
   headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
@@ -265,12 +265,12 @@ export default function MainApp({
  
 
   return (
-    <div className="flex h-screen w-full bg-[#FAFBFC] overflow-hidden">
+    <div className="mineral-workspace flex h-screen w-full bg-[#FAFBFC] overflow-hidden">
       {sidebarOpen && (
         <div className="fixed inset-0 bg-[#091E42]/40 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
-      <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-56 bg-white border-r border-[#DFE1E6] flex flex-col shrink-0 transform transition-transform lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`mineral-sidebar fixed lg:static inset-y-0 left-0 z-50 w-56 bg-white border-r border-[#DFE1E6] flex flex-col shrink-0 transform transition-transform lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="p-3 border-b border-[#DFE1E6]">
           <button type="button" onClick={onBackToDashboard} className="flex items-center gap-2 w-full text-left hover:bg-[#F4F5F7] rounded-[3px] p-1.5 cursor-pointer">
             <div className="w-7 h-7 rounded-[3px] bg-[#0052CC] flex items-center justify-center shrink-0">
@@ -328,7 +328,7 @@ export default function MainApp({
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="bg-white border-b border-[#DFE1E6] shrink-0">
+        <header className="mineral-workspace-header bg-white border-b border-[#DFE1E6] shrink-0">
           <div className="h-11 px-3 sm:px-4 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
               <button type="button" className="lg:hidden p-1 text-[#626F86] hover:bg-[#F4F5F7] rounded-[3px] cursor-pointer" onClick={() => setSidebarOpen(true)} aria-label="Open menu">
@@ -377,7 +377,7 @@ export default function MainApp({
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 sm:p-5">
+        <main className="mineral-content flex-1 overflow-y-auto p-4 sm:p-5">
           <AIChatBar projectId={projectId} onTaskCreated={() => refreshTasks(projectId)} />
           {renderContent()}
         </main>
@@ -385,7 +385,7 @@ export default function MainApp({
 
       {showTaskModal && (
         <div className="fixed inset-0 bg-[#091E42]/50 z-50 flex justify-end">
-          <div className="bg-white border-l border-[#DFE1E6] w-full max-w-3xl h-full flex flex-col shadow-sm">
+          <div className="mineral-task-drawer bg-white border-l border-[#DFE1E6] w-full max-w-3xl h-full flex flex-col shadow-sm">
             <div className="flex items-center justify-between px-4 py-3 border-b border-[#DFE1E6] shrink-0">
               <div className="flex items-center gap-2 text-xs text-[#626F86]">
                 <span className="font-mono text-[#0052CC] bg-[#DEEBFF] px-1.5 py-0.5 rounded-[3px]">{project?.key || 'TASK'}</span>

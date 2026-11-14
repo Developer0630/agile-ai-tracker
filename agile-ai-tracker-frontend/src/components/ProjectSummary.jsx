@@ -3,7 +3,7 @@ import axios from 'axios';
 import { ShieldAlert, Clock } from 'lucide-react';
 import { Button, PageHeader, Panel } from './ui';
 
-const API_BASE = 'http://localhost:5000/api';
+import { API_BASE } from '../config/api';
 
 export default function ProjectSummary({ tasks = [], project }) {
   const [aiAnalysis, setAiAnalysis] = useState(null);

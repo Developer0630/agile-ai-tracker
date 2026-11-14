@@ -11,7 +11,7 @@ import {
   Table, TableHead, TableHeaderCell, TableBody, TableRow, TableCell, StatusBadge
 } from '../components/ui';
 
-const API_BASE = 'http://localhost:5000/api';
+import { API_BASE } from '../config/api';
 
 export default function DashboardPage({ onSelectProject }) {
   const { user, logout } = useAuth();
@@ -40,8 +40,8 @@ export default function DashboardPage({ onSelectProject }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#FAFBFC] flex flex-col">
-      <header className="h-12 px-4 sm:px-6 flex items-center justify-between bg-white border-b border-[#DFE1E6] shrink-0">
+    <div className="mineral-dashboard min-h-screen bg-[#FAFBFC] flex flex-col">
+      <header className="mineral-topbar h-12 px-4 sm:px-6 flex items-center justify-between bg-white border-b border-[#DFE1E6] shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-[3px] bg-[#0052CC] flex items-center justify-center">
             <FolderKanban className="w-4 h-4 text-white" />
@@ -85,7 +85,7 @@ export default function DashboardPage({ onSelectProject }) {
         </div>
       </header>
 
-      <main className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6">
+      <main className="mineral-page flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6">
         <PageHeader
           title="Projects"
           description="Select a project to open its workspace."

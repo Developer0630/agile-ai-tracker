@@ -3,7 +3,7 @@ import axios from 'axios';
 import { FileText, Plus, Save, Trash2 } from 'lucide-react';
 import { Button, LoadingState, EmptyState, PageHeader } from './ui';
 
-const API_BASE = 'http://localhost:5000/api';
+import { API_BASE } from '../config/api';
 
 export default function DocsView({ projectId }) {
   const [docs, setDocs] = useState([]);

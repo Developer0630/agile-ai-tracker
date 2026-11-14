@@ -5,7 +5,7 @@ import {
   Button, PageHeader, LoadingState, EmptyState, StatusBadge, PriorityBadge, Modal, Input
 } from './ui';
 
-const API_BASE = 'http://localhost:5000/api';
+import { API_BASE } from '../config/api';
 
 export default function BacklogView({ projectId, onTaskUpdate, onOpenCreateModal }) {
   const [sprints, setSprints] = useState([]);

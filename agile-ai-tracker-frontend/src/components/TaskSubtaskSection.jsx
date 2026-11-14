@@ -2,7 +2,7 @@ import { useState } from 'react';
 import axios from 'axios';
 import { Sparkles, CheckSquare, Square, Loader2 } from 'lucide-react';
 
-const API_BASE = 'http://localhost:5000/api';
+import { API_BASE } from '../config/api';
 
 export default function TaskSubtaskSection({ task, onTaskUpdated }) {
   const [loading, setLoading] = useState(false);

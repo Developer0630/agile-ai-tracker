@@ -9,7 +9,7 @@ import {
   TableBody, TableRow, TableCell, 
 } from '../components/ui';
 
-const API_BASE = 'http://localhost:5000/api';
+import { API_BASE } from '../config/api';
 const getAuthConfig = () => ({
   headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
 });
@@ -112,8 +112,8 @@ export default function AdminSettingsPage({ onBack }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAFBFC] flex flex-col font-sans">
-      <header className="h-14 px-6 bg-white border-b border-[#DFE1E6] flex items-center justify-between shrink-0">
+    <div className="mineral-admin min-h-screen bg-[#FAFBFC] flex flex-col font-sans">
+      <header className="mineral-topbar h-14 px-6 bg-white border-b border-[#DFE1E6] flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <Button variant="subtle" size="sm" onClick={onBack}>
             <ArrowLeft className="w-4 h-4 mr-1" /> Quay lại Dashboard

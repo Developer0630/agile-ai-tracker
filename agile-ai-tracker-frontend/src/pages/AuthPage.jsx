@@ -3,9 +3,9 @@ import axios from 'axios';
 import AuthForm from '../components/AuthForm';
 import { useAuth } from '../context/AuthContext';
 
-const API_BASE = 'http://localhost:5000/api';
+import { API_BASE } from '../config/api';
 
-export default function AuthPage() {
+export default function AuthPage({ onBackToLanding }) {
   const [mode, setMode] = useState('login'); // 'login' hoặc 'register'
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
@@ -37,6 +37,7 @@ export default function AuthPage() {
       loading={loading}
       onSubmit={handleAuthSubmit}
       onSwitchMode={() => setMode(mode === 'login' ? 'register' : 'login')}
+      onBackToLanding={onBackToLanding}
     />
   );
 }

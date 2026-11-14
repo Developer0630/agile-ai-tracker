@@ -3,7 +3,7 @@ import axios from 'axios';
 import { Loader2 } from 'lucide-react';
 import { Button, Input } from './ui';
 
-const API_BASE = 'http://localhost:5000/api';
+import { API_BASE } from '../config/api';
 
 export default function AIChatBar({ projectId, onTaskCreated }) {
   const [prompt, setPrompt] = useState('');

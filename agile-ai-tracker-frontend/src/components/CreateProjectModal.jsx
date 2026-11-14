@@ -3,7 +3,7 @@ import axios from 'axios';
 import { X, Users, Check } from 'lucide-react';
 import { Modal, Input, Textarea, Button } from './ui';
 
-const API_BASE = 'http://localhost:5000/api';
+import { API_BASE } from '../config/api';
 
 export default function CreateProjectModal({ isOpen, onClose, onCreated }) {
   const [name, setName] = useState('');

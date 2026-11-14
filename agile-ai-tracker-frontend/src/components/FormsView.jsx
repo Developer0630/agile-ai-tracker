@@ -3,7 +3,7 @@ import axios from 'axios';
 import { Copy, CheckCircle2 } from 'lucide-react';
 import { PageHeader, Panel, Input, Textarea, Select, Button } from './ui';
 
-const API_BASE = 'http://localhost:5000/api';
+import { API_BASE } from '../config/api';
 
 export default function FormsView({ projectId, onTaskUpdate }) {
   const [formData, setFormData] = useState({

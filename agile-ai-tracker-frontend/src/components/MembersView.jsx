@@ -3,7 +3,7 @@ import axios from 'axios';
 import { UserPlus, Trash2 } from 'lucide-react';
 import { Button, Input, Select, PageHeader, Panel, Avatar, Table, TableHead, TableHeaderCell, TableBody, TableRow, TableCell } from './ui';
 
-const API_BASE = 'http://localhost:5000/api';
+import { API_BASE } from '../config/api';
 
 const getAuthConfig = () => ({
   headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }

@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { Button } from './ui';
 
-const API_BASE = 'http://localhost:5000/api';
+import { API_BASE } from '../config/api';
 
 export default function AutoReportModal({ isOpen, onClose, projectId }) {
   const [report, setReport] = useState(null);

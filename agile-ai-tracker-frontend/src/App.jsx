@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import LandingPage from './pages/LandingPage';
 import AuthPage from './pages/AuthPage';
 import DashboardPage from './pages/DashboardPage';
 import MainApp from './pages/MainApp';
-import { ArrowLeft } from 'lucide-react';
 
 const THEME_STORAGE_KEY = 'fjra-theme';
 const DENSITY_STORAGE_KEY = 'fjra-density';
@@ -23,6 +23,9 @@ function AppRouter() {
   const [selectedProjectId, setSelectedProjectId] = useState(null);
   const [theme, setTheme] = useState(getStoredTheme);
   const [density, setDensity] = useState(getStoredDensity);
+
+  // State điều hướng khi chưa đăng nhập: 'landing' hoặc 'auth'
+  const [guestView, setGuestView] = useState('landing');
 
   useEffect(() => {
     const root = document.documentElement;
@@ -50,18 +53,38 @@ function AppRouter() {
     return () => mediaQuery.removeEventListener('change', handleSystemThemeChange);
   }, [theme]);
 
+  // ==========================================
+  // 1. CHƯA ĐĂNG NHẬP (KHÁCH VÃNG LAI)
+  // ==========================================
   if (!isAuthenticated) {
-    return <AuthPage />;
+    if (guestView === 'auth') {
+      return (
+        <AuthPage 
+          onBackToLanding={() => setGuestView('landing')} 
+        />
+      );
+    }
+
+    return (
+      <LandingPage 
+        onGoToLogin={() => setGuestView('auth')}
+        onGoToRegister={() => setGuestView('auth')}
+      />
+    );
   }
 
+  // ==========================================
+  // 2. ĐÃ ĐĂNG NHẬP -> CHƯA CHỌN DỰ ÁN (DASHBOARD)
+  // ==========================================
   if (!selectedProjectId) {
     return <DashboardPage onSelectProject={(id) => setSelectedProjectId(id)} />;
   }
 
+  // ==========================================
+  // 3. ĐÃ CHỌN DỰ ÁN -> VÀO CHI TIẾT DỰ ÁN (MAIN APP)
+  // ==========================================
   return (
     <div className="fjra-app-legacy-frame">
-      
-
       <MainApp
         projectId={selectedProjectId}
         onBackToDashboard={() => setSelectedProjectId(null)}
